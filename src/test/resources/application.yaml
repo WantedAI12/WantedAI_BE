@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:perfumery;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+jwt:
+  secret: test-only-secret-value-that-is-definitely-longer-than-32-bytes-000
+  access-token-validity-seconds: 3600
+  refresh-token-validity-seconds: 1209600

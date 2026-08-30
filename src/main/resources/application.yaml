@@ -1,3 +1,31 @@
 spring:
   application:
     name: Perfumery
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:perfumery}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  servlet:
+    context-path: /api/v1
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-only-secret-change-me-to-a-long-random-value-at-least-32-bytes}
+  access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}
+  refresh-token-validity-seconds: ${JWT_REFRESH_TTL:1209600}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
