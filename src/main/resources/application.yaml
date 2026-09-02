@@ -24,6 +24,17 @@ jwt:
   access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}
   refresh-token-validity-seconds: ${JWT_REFRESH_TTL:1209600}
 
+ai:
+  modal:
+    base-url: ${AI_MODAL_BASE_URL:https://junseong2im--perfumery-ai-core-web.modal.run}
+    # Modal Proxy Token 전체 문자열 "wk-<id>.ws-<secret>". 비우면 AI 호출이 설정 오류로 처리됨.
+    # 소스/저장소에 실제 값을 넣지 말고 환경변수·Secret Manager로만 주입할 것.
+    auth-token: ${AI_MODAL_AUTH_TOKEN:}
+    connect-timeout: ${AI_MODAL_CONNECT_TIMEOUT:10s}
+    response-timeout: ${AI_MODAL_RESPONSE_TIMEOUT:130s}
+    requests-per-minute: ${AI_MODAL_RPM:30}
+    max-retries: ${AI_MODAL_MAX_RETRIES:1}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
