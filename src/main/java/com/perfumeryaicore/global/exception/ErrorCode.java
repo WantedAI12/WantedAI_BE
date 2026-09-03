@@ -26,6 +26,14 @@ public enum ErrorCode {
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
 	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
 
+	// 비동기 작업(Job)
+	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
+	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),
+	JOB_NOT_RETRYABLE(HttpStatus.CONFLICT, "재시도할 수 없는 작업입니다."),
+	JOB_NOT_CANCELLABLE(HttpStatus.CONFLICT, "이미 종료되어 취소할 수 없는 작업입니다."),
+	JOB_RETRY_NOT_SUPPORTED(HttpStatus.NOT_IMPLEMENTED, "이 작업 종류는 아직 재시도를 지원하지 않습니다."),
+	JOB_ILLEGAL_STATE(HttpStatus.CONFLICT, "작업 상태 전이가 올바르지 않습니다."),
+
 	// 조향 AI(Modal) 연동
 	AI_AUTH_MISCONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "조향 AI 인증 설정 오류로 서비스에 연결할 수 없습니다."),
 	AI_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "조향 AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."),
