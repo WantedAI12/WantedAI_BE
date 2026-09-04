@@ -1,6 +1,9 @@
 package com.perfumeryaicore.domain.formula.entity;
 
 import com.perfumeryaicore.global.common.BaseTimeEntity;
+import com.perfumeryaicore.global.common.CandidateStatus;
+import com.perfumeryaicore.global.exception.BusinessException;
+import com.perfumeryaicore.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -63,6 +66,33 @@ public class Candidate extends BaseTimeEntity {
 
 	public void attachVersion(Long versionId) {
 		this.currentVersionId = versionId;
+	}
+
+	/**
+	 * 실험 워크플로 상태 전이. 순서만 검증한다 — 안전 게이트 승인 여부 같은 다른 도메인
+	 * 조건은 experiment 도메인(호출부)이 이 메서드를 부르기 전에 확인한다.
+	 */
+	public void transitionStatus(CandidateStatus target) {
+		if (!isValidTransition(status, target)) {
+			throw new BusinessException(ErrorCode.CANDIDATE_STATUS_TRANSITION_INVALID,
+					"허용되지 않는 상태 전이입니다: " + status + " → " + target);
+		}
+		this.status = target;
+	}
+
+	private static boolean isValidTransition(CandidateStatus from, CandidateStatus to) {
+		if (from == to) {
+			return false;
+		}
+		return switch (to) {
+			case CONFIRMED_FOR_EXPERIMENT -> from == CandidateStatus.UNDER_REVIEW;
+			case IN_SENSORY_TEST -> from == CandidateStatus.CONFIRMED_FOR_EXPERIMENT;
+			case APPROVED -> from == CandidateStatus.IN_SENSORY_TEST;
+			case REJECTED -> from == CandidateStatus.UNDER_REVIEW
+					|| from == CandidateStatus.CONFIRMED_FOR_EXPERIMENT
+					|| from == CandidateStatus.IN_SENSORY_TEST;
+			case UNDER_REVIEW -> false;
+		};
 	}
 
 	public boolean isOwnedBy(Long memberId) {

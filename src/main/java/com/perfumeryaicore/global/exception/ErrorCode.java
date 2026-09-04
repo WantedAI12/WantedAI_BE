@@ -38,6 +38,8 @@ public enum ErrorCode {
 	CANDIDATE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 후보에 접근할 권한이 없습니다."),
 	CANDIDATE_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "후보 버전을 찾을 수 없습니다."),
 	GENERATION_REJECTED(HttpStatus.CONFLICT, "안전 제약을 만족하는 조향식을 생성하지 못했습니다."),
+	CANDIDATE_STATUS_TRANSITION_INVALID(HttpStatus.CONFLICT, "허용되지 않는 실험 상태 전이입니다."),
+	SAFETY_GATE_NOT_APPROVED(HttpStatus.CONFLICT, "안전 게이트가 승인되지 않아 실험 후보로 확정할 수 없습니다."),
 
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),

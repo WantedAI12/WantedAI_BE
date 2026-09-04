@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.formula.entity.CandidateVersion;
 import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
+import com.perfumeryaicore.global.common.CandidateStatus;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -63,6 +64,18 @@ public class CandidateService {
 	/** 접근 가능한 후보인지만 확인한다(존재 + 소유자). 다른 도메인의 접근 제어 재사용용. */
 	public void assertAccessible(Long candidateId, Long memberId) {
 		getAccessibleCandidate(candidateId, memberId);
+	}
+
+	/**
+	 * 실험 워크플로 상태를 전이한다. 상태 순서만 이 메서드가 검증하고, 안전 게이트 승인 같은
+	 * 다른 도메인 조건은 experiment 도메인이 호출 전에 확인한다(formula → safety 역방향
+	 * 의존을 만들지 않기 위해).
+	 */
+	@Transactional
+	public CandidateStatus transitionStatus(Long candidateId, Long memberId, CandidateStatus target) {
+		Candidate candidate = getAccessibleCandidate(candidateId, memberId);
+		candidate.transitionStatus(target);
+		return candidate.getStatus();
 	}
 
 	public CandidateVersionResponse version(Long versionId, Long memberId) {

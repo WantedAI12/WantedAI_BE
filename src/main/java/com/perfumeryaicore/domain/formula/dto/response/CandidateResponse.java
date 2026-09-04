@@ -1,6 +1,6 @@
 package com.perfumeryaicore.domain.formula.dto.response;
 
-import com.perfumeryaicore.domain.formula.entity.CandidateStatus;
+import com.perfumeryaicore.global.common.CandidateStatus;
 
 public record CandidateResponse(
 		Long candidateId,
