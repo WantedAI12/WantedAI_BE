@@ -9,6 +9,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * 전역 예외 핸들러. 모든 오류 응답을 공통 포맷({@link ApiResponse})으로 변환한다.
@@ -33,6 +35,14 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.getStatus())
 				.body(ApiResponse.error(ErrorCode.VALIDATION_FAILED.name(),
 						ErrorCode.VALIDATION_FAILED.getMessage(), details));
+	}
+
+	@ExceptionHandler({MethodArgumentTypeMismatchException.class, HandlerMethodValidationException.class})
+	public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
+		log.warn("Bad request parameter: {}", e.getMessage());
+		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.getStatus())
+				.body(ApiResponse.error(ErrorCode.VALIDATION_FAILED.name(),
+						ErrorCode.VALIDATION_FAILED.getMessage()));
 	}
 
 	@ExceptionHandler(Exception.class)

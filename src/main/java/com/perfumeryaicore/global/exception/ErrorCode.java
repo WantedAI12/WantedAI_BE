@@ -26,6 +26,13 @@ public enum ErrorCode {
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
 	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
 
+	// 자연어 향 요청(Request)
+	REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "향 요청을 찾을 수 없습니다."),
+	REQUEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 향 요청에 접근할 권한이 없습니다."),
+	REQUEST_EDIT_NOT_ALLOWED(HttpStatus.CONFLICT, "이미 확정된 요청은 수정할 수 없습니다."),
+	REQUEST_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "핵심 정보가 누락되거나 확정할 수 없는 상태입니다."),
+	REQUEST_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 요청으로는 후보를 생성할 수 없습니다."),
+
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
 	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),
