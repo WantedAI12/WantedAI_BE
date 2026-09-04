@@ -57,7 +57,10 @@ public class Job extends BaseTimeEntity {
 	@Column(name = "failure_reason", length = 500)
 	private String failureReason;
 
-	/** 재시도 시 원래 요청을 재구성하기 위한 입력 payload(JSON). 도메인이 enqueue 시점에 채운다. */
+	/**
+	 * 재시도 시 원래 요청을 재구성하기 위한 입력값. 형식은 {@link JobType}별 {@code JobRetryHandler}
+	 * 구현체가 정한다(꼭 JSON일 필요는 없음). 도메인이 enqueue 시점에 채운다.
+	 */
 	@Lob
 	@Column(name = "input_payload")
 	private String inputPayload;

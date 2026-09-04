@@ -81,6 +81,18 @@ public class FragranceRequestService {
 	}
 
 	/**
+	 * 후보 생성 등 다른 도메인이 확정된 요청 엔티티가 필요할 때 사용한다.
+	 * (formula 도메인에서 호출 — request → formula 워크플로 방향)
+	 */
+	public FragranceRequest getConfirmedRequest(Long requestId, Long memberId) {
+		FragranceRequest request = getAccessibleRequest(requestId, memberId);
+		if (!request.isConfirmed()) {
+			throw new BusinessException(ErrorCode.REQUEST_NOT_CONFIRMED);
+		}
+		return request;
+	}
+
+	/**
 	 * 작성자만 접근 허용. project 도메인 구현 시 프로젝트 멤버 접근을 추가한다.
 	 */
 	FragranceRequest getAccessibleRequest(Long requestId, Long memberId) {

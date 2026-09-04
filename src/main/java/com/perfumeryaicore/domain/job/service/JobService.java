@@ -1,6 +1,7 @@
 package com.perfumeryaicore.domain.job.service;
 
 import com.perfumeryaicore.domain.job.entity.Job;
+import com.perfumeryaicore.domain.job.entity.JobStatus;
 import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.domain.job.repository.JobRepository;
@@ -10,6 +11,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +29,19 @@ public class JobService {
 	private final JobRepository jobRepository;
 	private final Map<JobType, JobRetryHandler> retryHandlers = new EnumMap<>(JobType.class);
 
-	public JobService(JobRepository jobRepository, List<JobRetryHandler> handlers) {
+	public JobService(JobRepository jobRepository) {
 		this.jobRepository = jobRepository;
+	}
+
+	/**
+	 * {@link JobRetryHandler} 구현체는 보통 자신의 도메인 서비스를 거쳐 {@link JobService}로
+	 * 되돌아오는 순환 의존을 만든다({@code CandidateGenerationRetryHandler → CandidateGenerationService
+	 * → JobExecutor/JobService}). 이 목록을 생성자 인자로 받으면 순환을 끊을 방법이 없으므로
+	 * 세터 주입으로 받는다 — 인스턴스 생성 이후 채워지므로 다른 빈들이 그 사이에 이 서비스의
+	 * 참조를 먼저 얻을 수 있다.
+	 */
+	@Autowired(required = false)
+	public void setRetryHandlers(List<JobRetryHandler> handlers) {
 		for (JobRetryHandler handler : handlers) {
 			JobRetryHandler previous = retryHandlers.put(handler.supportedType(), handler);
 			if (previous != null) {
@@ -52,6 +65,38 @@ public class JobService {
 
 	public JobResponse get(Long jobId, Long memberId) {
 		return JobResponse.from(getAccessibleJob(jobId, memberId));
+	}
+
+	// --- JobExecutor 전용 수명주기 (각각 독립 트랜잭션) ---
+
+	/** @return 실제로 RUNNING으로 전이했으면 true. 작업이 없거나 이미 PENDING이 아니면 false. */
+	@Transactional
+	public boolean markRunning(Long jobId) {
+		Job job = jobRepository.findById(jobId).orElse(null);
+		if (job == null || job.getStatus() != JobStatus.PENDING) {
+			return false;
+		}
+		job.markRunning();
+		return true;
+	}
+
+	@Transactional
+	public void markAiCallStarted(Long jobId) {
+		jobRepository.findById(jobId).ifPresent(Job::markAiCallStarted);
+	}
+
+	@Transactional
+	public void markSucceeded(Long jobId, Long resultRefId) {
+		jobRepository.findById(jobId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND))
+				.markSucceeded(resultRefId);
+	}
+
+	@Transactional
+	public void markFailed(Long jobId, String reason, boolean retryable) {
+		jobRepository.findById(jobId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND))
+				.markFailed(reason, retryable);
 	}
 
 	@Transactional

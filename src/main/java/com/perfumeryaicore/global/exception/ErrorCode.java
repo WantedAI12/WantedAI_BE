@@ -33,6 +33,12 @@ public enum ErrorCode {
 	REQUEST_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "핵심 정보가 누락되거나 확정할 수 없는 상태입니다."),
 	REQUEST_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 요청으로는 후보를 생성할 수 없습니다."),
 
+	// 후보 조향식(Formula)
+	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "후보를 찾을 수 없습니다."),
+	CANDIDATE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 후보에 접근할 권한이 없습니다."),
+	CANDIDATE_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "후보 버전을 찾을 수 없습니다."),
+	GENERATION_REJECTED(HttpStatus.CONFLICT, "안전 제약을 만족하는 조향식을 생성하지 못했습니다."),
+
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
 	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),

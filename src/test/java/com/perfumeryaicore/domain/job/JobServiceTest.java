@@ -26,7 +26,9 @@ class JobServiceTest {
 	private final JobRepository jobRepository = mock(JobRepository.class);
 
 	private JobService service(JobRetryHandler... handlers) {
-		return new JobService(jobRepository, List.of(handlers));
+		JobService service = new JobService(jobRepository);
+		service.setRetryHandlers(List.of(handlers));
+		return service;
 	}
 
 	private Job job(long owner, JobStatus status, boolean retryable) {
@@ -143,7 +145,7 @@ class JobServiceTest {
 		JobRetryHandler a = handlerFor(JobType.CATALOG_SYNC);
 		JobRetryHandler b = handlerFor(JobType.CATALOG_SYNC);
 
-		assertThatThrownBy(() -> new JobService(jobRepository, List.of(a, b)))
+		assertThatThrownBy(() -> service(a, b))
 				.isInstanceOf(IllegalStateException.class);
 	}
 
