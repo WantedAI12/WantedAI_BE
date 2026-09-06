@@ -57,6 +57,9 @@ public enum ErrorCode {
 	CATALOG_SYNC_NOT_FOUND(HttpStatus.NOT_FOUND, "카탈로그 동기화 실행 기록을 찾을 수 없습니다."),
 	INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "생성된 조향식에서 확인된 적 없는 원료입니다."),
 
+	// 공급 변경 영향(Supply)
+	SUPPLY_CHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "공급 변경 이벤트를 찾을 수 없습니다."),
+
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
 	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),
