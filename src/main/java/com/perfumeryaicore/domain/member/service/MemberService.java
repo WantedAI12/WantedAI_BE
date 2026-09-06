@@ -3,12 +3,15 @@ package com.perfumeryaicore.domain.member.service;
 import com.perfumeryaicore.domain.member.dto.request.ChangePasswordRequest;
 import com.perfumeryaicore.domain.member.dto.request.UpdateProfileRequest;
 import com.perfumeryaicore.domain.member.dto.response.MemberResponse;
+import com.perfumeryaicore.domain.member.dto.response.MemberResponse.ProjectRole;
 import com.perfumeryaicore.domain.member.entity.Member;
 import com.perfumeryaicore.domain.member.repository.MemberRepository;
 import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
+import com.perfumeryaicore.domain.project.repository.ProjectMemberRepository;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,12 +27,15 @@ public class MemberService {
 
 	private final MemberRepository memberRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final ProjectMemberRepository projectMemberRepository;
 	private final PasswordEncoder passwordEncoder;
 
 	public MemberResponse getMe(Long memberId) {
 		Member member = findMember(memberId);
-		// TODO(project): project 도메인 구현 시 소속 프로젝트/역할 목록을 채운다.
-		return MemberResponse.from(member);
+		List<ProjectRole> projects = projectMemberRepository.findByMemberIdOrderByCreatedAtDesc(memberId).stream()
+				.map(pm -> new ProjectRole(pm.getProjectId(), pm.getRole().name()))
+				.toList();
+		return MemberResponse.from(member, projects);
 	}
 
 	@Transactional

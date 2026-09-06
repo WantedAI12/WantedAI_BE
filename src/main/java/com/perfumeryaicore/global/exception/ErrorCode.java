@@ -26,6 +26,14 @@ public enum ErrorCode {
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
 	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
 
+	// 프로젝트(Project) / 테넌트 · 역할
+	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다."),
+	PROJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 프로젝트의 멤버가 아닙니다."),
+	PROJECT_ROLE_FORBIDDEN(HttpStatus.FORBIDDEN, "이 작업을 수행할 프로젝트 역할 권한이 없습니다."),
+	PROJECT_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트 멤버를 찾을 수 없습니다."),
+	PROJECT_MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 프로젝트에 속한 멤버입니다."),
+	PROJECT_LAST_ADMIN(HttpStatus.CONFLICT, "프로젝트의 마지막 관리자(ORG_ADMIN)는 제거하거나 강등할 수 없습니다."),
+
 	// 자연어 향 요청(Request)
 	REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "향 요청을 찾을 수 없습니다."),
 	REQUEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 향 요청에 접근할 권한이 없습니다."),
