@@ -1,0 +1,131 @@
+package com.perfumeryaicore.domain.evidence.service;
+
+import com.perfumeryaicore.domain.evidence.dto.response.EvidenceReportResponse;
+import com.perfumeryaicore.domain.evidence.entity.EvidenceReport;
+import com.perfumeryaicore.domain.evidence.repository.EvidenceReportRepository;
+import com.perfumeryaicore.domain.formula.service.CandidateService;
+import com.perfumeryaicore.domain.job.dto.response.JobResponse;
+import com.perfumeryaicore.domain.job.entity.Job;
+import com.perfumeryaicore.domain.job.entity.JobType;
+import com.perfumeryaicore.domain.job.service.JobExecutor;
+import com.perfumeryaicore.domain.job.service.JobService;
+import com.perfumeryaicore.domain.prediction.service.PredictionService;
+import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
+import com.perfumeryaicore.global.exception.BusinessException;
+import com.perfumeryaicore.global.exception.ErrorCode;
+import com.perfumeryaicore.global.storage.S3FileStorage;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * 증거 보고서 생성. 새 AI 호출 없이 formula·safety·prediction·experiment·evidence 각자의
+ * 조회 결과를 한 시점에 모아 JSON 번들({@link EvidenceReportBundle})로 만들고, 같은 내용을
+ * PDF로 그려 S3에 올린다.
+ *
+ * <p>보고서는 {@link com.perfumeryaicore.domain.formula.entity.Candidate}와 같은 패턴으로
+ * 생성이 성공했을 때만 저장된다. 실패하면 {@code GET /jobs/{jobId}}에서 사유를 확인한다.
+ */
+@Slf4j
+@Service
+public class EvidenceReportService {
+
+	/** S3 비공개 버킷 다운로드 URL의 유효 기간. */
+	private static final Duration DOWNLOAD_URL_TTL = Duration.ofMinutes(15);
+
+	private final CandidateService candidateService;
+	private final SafetyEvaluationService safetyEvaluationService;
+	private final PredictionService predictionService;
+	private final EvidenceTimelineService evidenceTimelineService;
+	private final SensoryTestService sensoryTestService;
+	private final EvidenceReportRepository evidenceReportRepository;
+	private final EvidenceReportPdfRenderer pdfRenderer;
+	private final S3FileStorage s3FileStorage;
+	private final JobService jobService;
+	private final JobExecutor jobExecutor;
+	private final JsonMapper jsonMapper = JsonMapper.builder().build();
+
+	/**
+	 * {@code jobService}만 {@code @Lazy}: {@code JobService}가 {@link JobRetryHandler} 목록을
+	 * 세터로 주입받는데, {@link EvidenceReportRetryHandler}가 이 서비스로 되돌아오는 순환
+	 * 구조라서다(formula의 {@code CandidateGenerationService}와 동일한 이유).
+	 */
+	public EvidenceReportService(
+			CandidateService candidateService,
+			SafetyEvaluationService safetyEvaluationService,
+			PredictionService predictionService,
+			EvidenceTimelineService evidenceTimelineService,
+			SensoryTestService sensoryTestService,
+			EvidenceReportRepository evidenceReportRepository,
+			EvidenceReportPdfRenderer pdfRenderer,
+			S3FileStorage s3FileStorage,
+			@Lazy JobService jobService,
+			JobExecutor jobExecutor) {
+		this.candidateService = candidateService;
+		this.safetyEvaluationService = safetyEvaluationService;
+		this.predictionService = predictionService;
+		this.evidenceTimelineService = evidenceTimelineService;
+		this.sensoryTestService = sensoryTestService;
+		this.evidenceReportRepository = evidenceReportRepository;
+		this.pdfRenderer = pdfRenderer;
+		this.s3FileStorage = s3FileStorage;
+		this.jobService = jobService;
+		this.jobExecutor = jobExecutor;
+	}
+
+	public JobResponse request(Long candidateId, Long memberId) {
+		Long projectId = candidateService.getProjectId(candidateId, memberId);
+		Job job = jobService.enqueue(projectId, JobType.EVIDENCE_REPORT, memberId, String.valueOf(candidateId));
+		dispatch(job.getId(), candidateId, memberId);
+		return jobService.get(job.getId(), memberId);
+	}
+
+	/** 최초 실행과 재시도({@link EvidenceReportRetryHandler})가 공유하는 실행 경로. */
+	public void dispatch(Long jobId, Long candidateId, Long memberId) {
+		jobExecutor.execute(jobId, JobType.EVIDENCE_REPORT, context -> generate(jobId, candidateId, memberId));
+	}
+
+	private Long generate(Long jobId, Long candidateId, Long memberId) {
+		EvidenceReportBundle bundle = new EvidenceReportBundle(
+				candidateId,
+				candidateService.get(candidateId, memberId),
+				safetyEvaluationService.get(candidateId, memberId),
+				predictionService.get(candidateId, memberId),
+				evidenceTimelineService.timeline(candidateId, memberId),
+				sensoryTestService.list(candidateId, memberId),
+				LocalDateTime.now(),
+				memberId);
+
+		String reportJson = jsonMapper.writeValueAsString(bundle);
+
+		byte[] pdfBytes = pdfRenderer.render(bundle);
+		String objectKey = "evidence-reports/%d/%d.pdf".formatted(candidateId, jobId);
+		s3FileStorage.upload(objectKey, pdfBytes, "application/pdf");
+
+		EvidenceReport report = evidenceReportRepository.save(
+				EvidenceReport.completed(candidateId, jobId, reportJson, objectKey, memberId));
+		log.info("[EVIDENCE] report id={} candidate={} pdfKey={} generated by={}",
+				report.getId(), candidateId, objectKey, memberId);
+		return report.getId();
+	}
+
+	@Transactional(readOnly = true)
+	public EvidenceReportResponse get(Long reportId, Long memberId) {
+		EvidenceReport report = evidenceReportRepository.findById(reportId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.EVIDENCE_REPORT_NOT_FOUND));
+		candidateService.assertAccessible(report.getCandidateId(), memberId);
+
+		String downloadUrl = report.getPdfObjectKey() == null
+				? null
+				: s3FileStorage.presignedGetUrl(report.getPdfObjectKey(), DOWNLOAD_URL_TTL);
+
+		return new EvidenceReportResponse(
+				report.getId(), report.getCandidateId(), report.getStatus(),
+				jsonMapper.readTree(report.getReportData()),
+				downloadUrl);
+	}
+}

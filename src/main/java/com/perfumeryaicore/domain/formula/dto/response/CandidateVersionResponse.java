@@ -17,6 +17,7 @@ public record CandidateVersionResponse(
 		String generationRationale,
 		GenerationMeta generationMeta,
 		Temporal temporal,
+		Long createdBy,
 		LocalDateTime createdAt
 ) {
 

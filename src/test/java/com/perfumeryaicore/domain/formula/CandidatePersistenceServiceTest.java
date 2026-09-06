@@ -56,7 +56,7 @@ class CandidatePersistenceServiceTest {
 				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
 		PerfumeryAiResult result = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 
-		Long candidateId = service.persist(5L, 1L, 77L, result);
+		Long candidateId = service.persist(5L, 10L, 1L, 77L, result);
 
 		assertThat(candidateId).isEqualTo(500L);
 
@@ -106,7 +106,7 @@ class CandidatePersistenceServiceTest {
 				null, null, null, null, null, null, null, null);
 		PerfumeryAiResult result = new PerfumeryAiResult("{}", parsed, 100L);
 
-		service.persist(5L, 1L, 77L, result);
+		service.persist(5L, 10L, 1L, 77L, result);
 
 		verify(ingredientRepository, never()).saveAll(anyList());
 	}

@@ -27,10 +27,10 @@ public class CandidatePersistenceService {
 	private final CandidateVersionIngredientRepository ingredientRepository;
 
 	@Transactional
-	public Long persist(Long requestId, Long memberId, Long jobId, PerfumeryAiResult result) {
+	public Long persist(Long requestId, Long projectId, Long memberId, Long jobId, PerfumeryAiResult result) {
 		FormulaGenerationResponse parsed = result.parsed();
 
-		Candidate candidate = candidateRepository.save(Candidate.create(requestId, memberId, jobId));
+		Candidate candidate = candidateRepository.save(Candidate.create(requestId, projectId, memberId, jobId));
 
 		CandidateVersion version = candidateVersionRepository.save(CandidateVersion.builder()
 				.candidateId(candidate.getId())

@@ -85,6 +85,6 @@ public class CandidateGenerationService {
 					reason != null ? reason : ErrorCode.GENERATION_REJECTED.getMessage());
 		}
 
-		return candidatePersistenceService.persist(requestId, memberId, jobId, result);
+		return candidatePersistenceService.persist(requestId, request.getProjectId(), memberId, jobId, result);
 	}
 }

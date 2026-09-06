@@ -58,6 +58,7 @@ public class CandidateVersionMapper {
 				version.getGenerationRationale(),
 				meta,
 				temporal,
+				version.getCreatedBy(),
 				version.getCreatedAt());
 	}
 

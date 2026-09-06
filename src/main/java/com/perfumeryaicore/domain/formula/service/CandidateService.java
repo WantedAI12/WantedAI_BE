@@ -66,6 +66,11 @@ public class CandidateService {
 		getAccessibleCandidate(candidateId, memberId);
 	}
 
+	/** 후보가 속한 프로젝트 ID. evidence 도메인이 Job 등록 시 필요(다른 도메인의 접근 제어 재사용용). */
+	public Long getProjectId(Long candidateId, Long memberId) {
+		return getAccessibleCandidate(candidateId, memberId).getProjectId();
+	}
+
 	/**
 	 * 실험 워크플로 상태를 전이한다. 상태 순서만 이 메서드가 검증하고, 안전 게이트 승인 같은
 	 * 다른 도메인 조건은 experiment 도메인이 호출 전에 확인한다(formula → safety 역방향

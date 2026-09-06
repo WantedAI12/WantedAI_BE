@@ -112,7 +112,7 @@ class CandidateGenerationServiceTest {
 				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"))).thenReturn(aiResult);
-		when(candidatePersistenceService.persist(5L, 1L, 77L, aiResult)).thenReturn(900L);
+		when(candidatePersistenceService.persist(5L, 10L, 1L, 77L, aiResult)).thenReturn(900L);
 
 		service.enqueue(5L, 1L);
 
@@ -124,7 +124,7 @@ class CandidateGenerationServiceTest {
 
 		assertThat(resultRefId).isEqualTo(900L);
 		assertThat(aiCallStarted[0]).isTrue();
-		verify(candidatePersistenceService, times(1)).persist(5L, 1L, 77L, aiResult);
+		verify(candidatePersistenceService, times(1)).persist(5L, 10L, 1L, 77L, aiResult);
 	}
 
 	@Test
@@ -152,6 +152,6 @@ class CandidateGenerationServiceTest {
 		assertThatThrownBy(() -> captor.getValue().run(() -> { }))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
-		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), any());
+		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
 	}
 }

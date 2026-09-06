@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class CandidateStatusTransitionTest {
 
 	private Candidate newCandidate() {
-		return Candidate.create(5L, 1L, 77L);
+		return Candidate.create(5L, 10L, 1L, 77L);
 	}
 
 	@Test

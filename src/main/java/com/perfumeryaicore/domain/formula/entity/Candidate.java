@@ -40,6 +40,13 @@ public class Candidate extends BaseTimeEntity {
 	@Column(name = "request_id", nullable = false)
 	private Long requestId;
 
+	/**
+	 * ERD 대비: 요청 → 프로젝트를 매번 조회하지 않도록 여기에도 둔다(evidence 도메인이
+	 * 증거 보고서 Job을 등록할 때 필요 — 문서 델타 반영 대상).
+	 */
+	@Column(name = "project_id", nullable = false)
+	private Long projectId;
+
 	@Column(name = "created_by", nullable = false)
 	private Long createdBy;
 
@@ -53,15 +60,16 @@ public class Candidate extends BaseTimeEntity {
 	@Column(name = "job_id")
 	private Long jobId;
 
-	private Candidate(Long requestId, Long createdBy, Long jobId) {
+	private Candidate(Long requestId, Long projectId, Long createdBy, Long jobId) {
 		this.requestId = requestId;
+		this.projectId = projectId;
 		this.createdBy = createdBy;
 		this.jobId = jobId;
 		this.status = CandidateStatus.UNDER_REVIEW;
 	}
 
-	public static Candidate create(Long requestId, Long createdBy, Long jobId) {
-		return new Candidate(requestId, createdBy, jobId);
+	public static Candidate create(Long requestId, Long projectId, Long createdBy, Long jobId) {
+		return new Candidate(requestId, projectId, createdBy, jobId);
 	}
 
 	public void attachVersion(Long versionId) {

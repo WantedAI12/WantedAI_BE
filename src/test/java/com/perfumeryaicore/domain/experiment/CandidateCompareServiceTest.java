@@ -32,7 +32,7 @@ class CandidateCompareServiceTest {
 				.map(a -> new IngredientLine("ing", "Ingredient", "top", 10.0, 1.0, 20.0, a))
 				.toList();
 		CandidateVersionResponse version = new CandidateVersionResponse(
-				900L, candidateId, null, ingredients, cost, "rationale", null, null, LocalDateTime.now());
+				900L, candidateId, null, ingredients, cost, "rationale", null, null, 1L, LocalDateTime.now());
 		return new CandidateResponse(candidateId, requestId, CandidateStatus.UNDER_REVIEW, version);
 	}
 

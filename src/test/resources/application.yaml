@@ -24,3 +24,8 @@ ai:
     response-timeout: 2s
     requests-per-minute: 30
     max-retries: 1
+
+aws:
+  s3:
+    bucket: test-bucket
+    region: ap-northeast-2

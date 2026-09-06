@@ -40,3 +40,10 @@ springdoc:
     path: /swagger-ui.html
     tags-sorter: alpha
     operations-sorter: alpha
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:perfumery-ai-core}
+    region: ${AWS_REGION:ap-northeast-2}
+    # 자격증명은 여기 없음 — AWS SDK 기본 체인(EC2 IAM 인스턴스 역할 → 환경변수
+    # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY → 자격증명 파일)을 그대로 쓴다.
