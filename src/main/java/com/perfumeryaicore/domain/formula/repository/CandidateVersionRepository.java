@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CandidateVersionRepository extends JpaRepository<CandidateVersion, Long> {
 
 	List<CandidateVersion> findByCandidateIdOrderByCreatedAtDesc(Long candidateId);
+
+	List<CandidateVersion> findByCandidateIdIn(List<Long> candidateIds);
 }

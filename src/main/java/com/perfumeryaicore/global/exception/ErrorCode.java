@@ -53,6 +53,10 @@ public enum ErrorCode {
 	SENSORY_TEST_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 계획을 찾을 수 없습니다."),
 	EVIDENCE_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "증거 보고서를 찾을 수 없습니다."),
 
+	// 원료 카탈로그(Ingredient)
+	CATALOG_SYNC_NOT_FOUND(HttpStatus.NOT_FOUND, "카탈로그 동기화 실행 기록을 찾을 수 없습니다."),
+	INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "생성된 조향식에서 확인된 적 없는 원료입니다."),
+
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
 	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),

@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CandidateRepository extends JpaRepository<Candidate, Long> {
 
 	List<Candidate> findByRequestIdOrderByCreatedAtDesc(Long requestId);
+
+	List<Candidate> findByProjectIdIn(List<Long> projectIds);
 }
