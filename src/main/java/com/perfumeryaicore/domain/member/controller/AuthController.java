@@ -1,12 +1,15 @@
 package com.perfumeryaicore.domain.member.controller;
 
+import com.perfumeryaicore.domain.member.dto.request.ForgotPasswordRequest;
 import com.perfumeryaicore.domain.member.dto.request.LoginRequest;
 import com.perfumeryaicore.domain.member.dto.request.LogoutRequest;
+import com.perfumeryaicore.domain.member.dto.request.ResetPasswordRequest;
 import com.perfumeryaicore.domain.member.dto.request.SignupRequest;
 import com.perfumeryaicore.domain.member.dto.request.TokenRefreshRequest;
 import com.perfumeryaicore.domain.member.dto.response.MemberResponse;
 import com.perfumeryaicore.domain.member.dto.response.TokenResponse;
 import com.perfumeryaicore.domain.member.service.AuthService;
+import com.perfumeryaicore.domain.member.service.PasswordResetService;
 import com.perfumeryaicore.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
 	private final AuthService authService;
+	private final PasswordResetService passwordResetService;
 
 	@Operation(summary = "이메일/비밀번호로 회원가입")
 	@PostMapping("/signup")
@@ -50,6 +54,20 @@ public class AuthController {
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
 		authService.logout(request.refreshToken());
+		return ResponseEntity.noContent().build();
+	}
+
+	@Operation(summary = "비밀번호 재설정 요청 (비로그인) — 가입 여부와 무관하게 항상 같은 응답")
+	@PostMapping("/password/forgot")
+	public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+		passwordResetService.forgotPassword(request.email());
+		return ResponseEntity.accepted().build();
+	}
+
+	@Operation(summary = "비밀번호 재설정 (비로그인, 토큰 1회용) — 완료 시 기존 세션 전체 종료")
+	@PostMapping("/password/reset")
+	public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+		passwordResetService.resetPassword(request.token(), request.newPassword());
 		return ResponseEntity.noContent().build();
 	}
 }
