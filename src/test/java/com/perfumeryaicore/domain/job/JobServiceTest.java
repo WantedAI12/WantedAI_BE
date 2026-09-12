@@ -14,6 +14,7 @@ import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.repository.JobRepository;
 import com.perfumeryaicore.domain.job.service.JobRetryHandler;
 import com.perfumeryaicore.domain.job.service.JobService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -24,9 +25,11 @@ import org.junit.jupiter.api.Test;
 class JobServiceTest {
 
 	private final JobRepository jobRepository = mock(JobRepository.class);
+	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
 
 	private JobService service(JobRetryHandler... handlers) {
-		JobService service = new JobService(jobRepository);
+		when(accessGuard.isMember(10L, 1L)).thenReturn(true); // job(...) 아래서 projectId=10L, owner=1L 고정
+		JobService service = new JobService(jobRepository, accessGuard);
 		service.setRetryHandlers(List.of(handlers));
 		return service;
 	}

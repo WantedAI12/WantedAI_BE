@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.formula.entity.CandidateVersion;
 import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.CandidateStatus;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -16,8 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 후보·후보 버전 조회. 접근 제어는 {@code Candidate.createdBy} 기준
- * (TODO(project): 프로젝트 멤버 접근으로 확장).
+ * 후보·후보 버전 조회. 접근 제어는 후보가 속한 프로젝트의 멤버십 기준
+ * ({@link ProjectAccessGuard}) — 프로젝트 멤버라면 생성자가 아니어도 조회·수정할 수 있다.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,10 +29,11 @@ public class CandidateService {
 	private final CandidateVersionRepository candidateVersionRepository;
 	private final CandidateVersionIngredientRepository ingredientRepository;
 	private final CandidateVersionMapper versionMapper;
+	private final ProjectAccessGuard accessGuard;
 
 	public List<CandidateResponse> listByRequest(Long requestId, Long memberId) {
 		return candidateRepository.findByRequestIdOrderByCreatedAtDesc(requestId).stream()
-				.filter(c -> c.isOwnedBy(memberId))
+				.filter(c -> accessGuard.isMember(c.getProjectId(), memberId))
 				.map(this::toResponse)
 				.toList();
 	}
@@ -88,7 +90,7 @@ public class CandidateService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));
 		Candidate candidate = candidateRepository.findById(version.getCandidateId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_NOT_FOUND));
-		if (!candidate.isOwnedBy(memberId)) {
+		if (!accessGuard.isMember(candidate.getProjectId(), memberId)) {
 			throw new BusinessException(ErrorCode.CANDIDATE_ACCESS_DENIED);
 		}
 		return toVersionResponse(version);
@@ -97,7 +99,7 @@ public class CandidateService {
 	private Candidate getAccessibleCandidate(Long candidateId, Long memberId) {
 		Candidate candidate = candidateRepository.findById(candidateId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_NOT_FOUND));
-		if (!candidate.isOwnedBy(memberId)) {
+		if (!accessGuard.isMember(candidate.getProjectId(), memberId)) {
 			throw new BusinessException(ErrorCode.CANDIDATE_ACCESS_DENIED);
 		}
 		return candidate;
