@@ -1,14 +1,19 @@
 package com.perfumeryaicore.domain.formula.controller;
 
+import com.perfumeryaicore.domain.formula.dto.request.UpsertCandidateMemoRequest;
+import com.perfumeryaicore.domain.formula.dto.response.CandidateMemoResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
+import com.perfumeryaicore.domain.formula.entity.CandidateMemoType;
 import com.perfumeryaicore.domain.formula.service.CandidateGenerationService;
+import com.perfumeryaicore.domain.formula.service.CandidateMemoService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +22,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Formula")
@@ -26,6 +33,7 @@ public class CandidateController {
 
 	private final CandidateGenerationService generationService;
 	private final CandidateService candidateService;
+	private final CandidateMemoService candidateMemoService;
 
 	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기)")
 	@PostMapping("/requests/{requestId}/candidates")
@@ -66,5 +74,23 @@ public class CandidateController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long versionId) {
 		return ApiResponse.success(candidateService.version(versionId, principal.id()));
+	}
+
+	@Operation(summary = "후보 메모 3종 조회 (입력내용/검토사항/다음실험, 저장된 적 없으면 revision 0인 빈 값)")
+	@GetMapping("/candidates/{candidateId}/memos")
+	public ApiResponse<List<CandidateMemoResponse>> memos(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId) {
+		return ApiResponse.success(candidateMemoService.list(candidateId, principal.id()));
+	}
+
+	@Operation(summary = "후보 메모 저장 (생성·수정 겸용, 낙관적 잠금 — expectedRevision 불일치 시 409)")
+	@PutMapping("/candidates/{candidateId}/memos/{memoType}")
+	public ApiResponse<CandidateMemoResponse> upsertMemo(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@PathVariable CandidateMemoType memoType,
+			@Valid @RequestBody UpsertCandidateMemoRequest request) {
+		return ApiResponse.success(candidateMemoService.upsert(candidateId, principal.id(), memoType, request));
 	}
 }

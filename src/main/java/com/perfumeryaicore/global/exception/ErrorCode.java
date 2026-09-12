@@ -48,6 +48,7 @@ public enum ErrorCode {
 	GENERATION_REJECTED(HttpStatus.CONFLICT, "안전 제약을 만족하는 조향식을 생성하지 못했습니다."),
 	CANDIDATE_STATUS_TRANSITION_INVALID(HttpStatus.CONFLICT, "허용되지 않는 실험 상태 전이입니다."),
 	SAFETY_GATE_NOT_APPROVED(HttpStatus.CONFLICT, "안전 게이트가 승인되지 않아 실험 후보로 확정할 수 없습니다."),
+	CANDIDATE_MEMO_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 이 메모를 저장했습니다. 최신 내용을 다시 불러온 뒤 다시 시도하세요."),
 
 	// 증거·관능검증(Evidence)
 	SENSORY_TEST_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 계획을 찾을 수 없습니다."),
