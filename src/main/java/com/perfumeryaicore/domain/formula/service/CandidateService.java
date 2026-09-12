@@ -73,6 +73,11 @@ public class CandidateService {
 		return getAccessibleCandidate(candidateId, memberId).getProjectId();
 	}
 
+	/** 후보의 현재 버전 ID. 메모 등 부가 컨텍스트 기록용(다른 도메인의 접근 제어 재사용용). */
+	public Long getCurrentVersionId(Long candidateId, Long memberId) {
+		return getAccessibleCandidate(candidateId, memberId).getCurrentVersionId();
+	}
+
 	/**
 	 * 실험 워크플로 상태를 전이한다. 상태 순서만 이 메서드가 검증하고, 안전 게이트 승인 같은
 	 * 다른 도메인 조건은 experiment 도메인이 호출 전에 확인한다(formula → safety 역방향
