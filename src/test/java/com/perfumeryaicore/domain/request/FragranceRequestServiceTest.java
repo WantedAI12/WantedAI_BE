@@ -13,18 +13,26 @@ import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
 import com.perfumeryaicore.domain.request.repository.FragranceRequestRepository;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.TargetRegion;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class FragranceRequestServiceTest {
 
 	private final FragranceRequestRepository repository = mock(FragranceRequestRepository.class);
-	private final FragranceRequestService service = new FragranceRequestService(repository);
+	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
+	private final FragranceRequestService service = new FragranceRequestService(repository, accessGuard);
+
+	@BeforeEach
+	void memberIsProjectMember() {
+		when(accessGuard.isMember(10L, 1L)).thenReturn(true);
+	}
 
 	private CreateFragranceRequestRequest createDto(boolean complete) {
 		return new CreateFragranceRequestRequest(
@@ -125,6 +133,20 @@ class FragranceRequestServiceTest {
 		when(repository.findByProjectIdAndStatusOrderByCreatedAtDesc(10L, RequestStatus.CONFIRMED))
 				.thenReturn(List.of());
 
-		assertThat(service.list(10L, RequestStatus.CONFIRMED)).isEmpty();
+		assertThat(service.list(10L, 1L, RequestStatus.CONFIRMED)).isEmpty();
+	}
+
+	@Test
+	void list_is_denied_for_a_non_member() {
+		assertThatThrownBy(() -> service.list(10L, 999L, null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.REQUEST_ACCESS_DENIED);
+	}
+
+	@Test
+	void create_is_denied_for_a_non_member() {
+		assertThatThrownBy(() -> service.create(10L, 999L, createDto(true)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.REQUEST_ACCESS_DENIED);
 	}
 }

@@ -46,7 +46,7 @@ public class FragranceRequestController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long projectId,
 			@RequestParam(required = false) RequestStatus status) {
-		return ApiResponse.success(requestService.list(projectId, status));
+		return ApiResponse.success(requestService.list(projectId, principal.id(), status));
 	}
 
 	@Operation(summary = "구조화 결과/누락 항목/상태 조회")

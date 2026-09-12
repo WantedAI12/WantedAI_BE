@@ -6,6 +6,7 @@ import com.perfumeryaicore.domain.request.dto.response.FragranceRequestResponse;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
 import com.perfumeryaicore.domain.request.repository.FragranceRequestRepository;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 자연어 향 요청의 생성·조회·보완·확정. 외부 AI 호출 없이 정규화와 검증만 수행한다.
+ * 접근 제어는 요청이 속한 프로젝트의 멤버십 기준({@link ProjectAccessGuard}).
  */
 @Slf4j
 @Service
@@ -24,9 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class FragranceRequestService {
 
 	private final FragranceRequestRepository requestRepository;
+	private final ProjectAccessGuard accessGuard;
 
 	@Transactional
 	public FragranceRequestResponse create(Long projectId, Long memberId, CreateFragranceRequestRequest dto) {
+		if (!accessGuard.isMember(projectId, memberId)) {
+			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
+		}
 		FragranceRequest request = FragranceRequest.create(projectId, memberId, dto.rawText());
 		request.applyUpdate(
 				null,
@@ -44,7 +50,10 @@ public class FragranceRequestService {
 		return FragranceRequestResponse.from(saved);
 	}
 
-	public List<FragranceRequestResponse> list(Long projectId, RequestStatus status) {
+	public List<FragranceRequestResponse> list(Long projectId, Long memberId, RequestStatus status) {
+		if (!accessGuard.isMember(projectId, memberId)) {
+			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
+		}
 		List<FragranceRequest> rows = (status == null)
 				? requestRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
 				: requestRepository.findByProjectIdAndStatusOrderByCreatedAtDesc(projectId, status);
@@ -92,14 +101,11 @@ public class FragranceRequestService {
 		return request;
 	}
 
-	/**
-	 * 작성자만 접근 허용. project 도메인 구현 시 프로젝트 멤버 접근을 추가한다.
-	 */
+	/** 요청이 속한 프로젝트의 멤버만 접근 허용. */
 	FragranceRequest getAccessibleRequest(Long requestId, Long memberId) {
 		FragranceRequest request = requestRepository.findById(requestId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
-		if (!request.isOwnedBy(memberId)) {
-			// TODO(project): 같은 프로젝트 멤버도 조회/수정 가능하도록 확장
+		if (!accessGuard.isMember(request.getProjectId(), memberId)) {
 			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
 		}
 		return request;

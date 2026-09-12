@@ -5,6 +5,7 @@ import com.perfumeryaicore.domain.job.entity.JobStatus;
 import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.domain.job.repository.JobRepository;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.EnumMap;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>작업 <em>본문</em> 실행은 {@link JobExecutor}가, 종류별 재시도 재구성은 도메인이 등록한
  * {@link JobRetryHandler}가 맡는다. 이 서비스는 수명주기와 접근 제어만 책임진다.
+ * 접근 제어는 작업이 속한 프로젝트의 멤버십 기준({@link ProjectAccessGuard}).
  */
 @Slf4j
 @Service
@@ -27,10 +29,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class JobService {
 
 	private final JobRepository jobRepository;
+	private final ProjectAccessGuard accessGuard;
 	private final Map<JobType, JobRetryHandler> retryHandlers = new EnumMap<>(JobType.class);
 
-	public JobService(JobRepository jobRepository) {
+	public JobService(JobRepository jobRepository, ProjectAccessGuard accessGuard) {
 		this.jobRepository = jobRepository;
+		this.accessGuard = accessGuard;
 	}
 
 	/**
@@ -119,14 +123,11 @@ public class JobService {
 		return JobResponse.from(job);
 	}
 
-	/**
-	 * 작업 생성 주체만 접근 허용. project 도메인 구현 시 프로젝트 멤버 접근을 추가한다.
-	 */
+	/** 작업이 속한 프로젝트의 멤버만 접근 허용. */
 	private Job getAccessibleJob(Long jobId, Long memberId) {
 		Job job = jobRepository.findById(jobId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND));
-		if (!job.isOwnedBy(memberId)) {
-			// TODO(project): 같은 프로젝트 멤버도 조회 가능하도록 확장
+		if (!accessGuard.isMember(job.getProjectId(), memberId)) {
 			throw new BusinessException(ErrorCode.JOB_ACCESS_DENIED);
 		}
 		return job;
