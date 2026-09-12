@@ -25,6 +25,7 @@ public enum ErrorCode {
 	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
 	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
+	PASSWORD_RESET_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 재설정 토큰입니다."),
 
 	// 프로젝트(Project) / 테넌트 · 역할
 	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다."),
