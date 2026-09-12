@@ -33,6 +33,12 @@ public enum ErrorCode {
 	PROJECT_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트 멤버를 찾을 수 없습니다."),
 	PROJECT_MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 프로젝트에 속한 멤버입니다."),
 	PROJECT_LAST_ADMIN(HttpStatus.CONFLICT, "프로젝트의 마지막 관리자(ORG_ADMIN)는 제거하거나 강등할 수 없습니다."),
+	PROJECT_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트에 연결된 이미지가 없습니다."),
+	PROJECT_IMAGE_ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "이미지 자산을 찾을 수 없습니다."),
+	PROJECT_IMAGE_ASSET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인이 업로드한 이미지만 연결할 수 있습니다."),
+	PROJECT_IMAGE_ASSET_NOT_PENDING(HttpStatus.CONFLICT, "이미 연결되었거나 폐기된 이미지 자산입니다."),
+	PROJECT_IMAGE_UNSUPPORTED_FORMAT(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 형식입니다. (jpeg/png/webp만 허용)"),
+	PROJECT_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "이미지 용량이 5MB를 초과했습니다."),
 
 	// 자연어 향 요청(Request)
 	REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "향 요청을 찾을 수 없습니다."),
