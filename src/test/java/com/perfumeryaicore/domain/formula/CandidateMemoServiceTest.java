@@ -17,6 +17,7 @@ import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
 import com.perfumeryaicore.domain.formula.service.CandidateMemoService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.formula.service.CandidateVersionMapper;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.lang.reflect.Field;
@@ -40,8 +41,9 @@ class CandidateMemoServiceTest {
 	private final CandidateVersionIngredientRepository ingredientRepository =
 			mock(CandidateVersionIngredientRepository.class);
 	private final CandidateVersionMapper versionMapper = mock(CandidateVersionMapper.class);
+	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
 	private final CandidateService candidateService = new CandidateService(
-			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper);
+			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper, accessGuard);
 	private final CandidateMemoService service = new CandidateMemoService(memoRepository, candidateService);
 
 	private static Candidate withId(Candidate candidate, long id) {
@@ -60,6 +62,7 @@ class CandidateMemoServiceTest {
 		Candidate candidate = withId(Candidate.create(1L, 10L, MEMBER_ID, null), CANDIDATE_ID);
 		candidate.attachVersion(VERSION_ID);
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(candidate));
+		when(accessGuard.isMember(10L, MEMBER_ID)).thenReturn(true);
 	}
 
 	@Test
@@ -136,8 +139,9 @@ class CandidateMemoServiceTest {
 
 	@Test
 	void a_non_member_cannot_read_or_write_memos() {
+		// projectId 20L은 accessGuard에 스텁하지 않았으므로 Mockito 기본값(false)으로 비멤버 처리된다.
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(
-				withId(Candidate.create(1L, 10L, 999L, null), CANDIDATE_ID)));
+				withId(Candidate.create(1L, 20L, 999L, null), CANDIDATE_ID)));
 
 		assertThatThrownBy(() -> service.list(CANDIDATE_ID, MEMBER_ID))
 				.isInstanceOf(BusinessException.class)
