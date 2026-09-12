@@ -78,6 +78,11 @@ public class CandidateGenerationService {
 		context.aiCallStarted();
 		PerfumeryAiResult result = perfumeryAiClient.generateFormula(modalRequest, "job-" + jobId);
 
+		if (context.isCancelled()) {
+			log.info("[FORMULA] job={} request={} cancelled before persisting result", jobId, requestId);
+			throw new BusinessException(ErrorCode.JOB_CANCELLED);
+		}
+
 		if (result.parsed().isNoSafeMatch()) {
 			String reason = result.parsed().message();
 			log.info("[FORMULA] job={} request={} no_safe_match: {}", jobId, requestId, reason);

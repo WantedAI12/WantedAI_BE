@@ -213,4 +213,51 @@ class JobServiceTest {
 
 		assertThat(running.getAiCallStartedAt()).isNull();
 	}
+
+	/** BE-041: 취소 후 늦게 도착한 성공이 예외 없이 조용히 무시돼야 한다. */
+	@Test
+	void markSucceeded_on_a_cancelled_job_is_ignored_without_throwing() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int attempt = running.getAttempt();
+		running.cancel();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		service().markSucceeded(1L, attempt, 999L);
+
+		assertThat(running.getStatus()).isEqualTo(JobStatus.CANCELLED);
+		assertThat(running.getResultRefId()).isNull();
+	}
+
+	/** BE-041: 취소 후 늦게 도착한 실패도 예외 루프 없이 조용히 무시돼야 한다. */
+	@Test
+	void markFailed_on_a_cancelled_job_is_ignored_without_throwing() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int attempt = running.getAttempt();
+		running.cancel();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		service().markFailed(1L, attempt, "late failure", true);
+
+		assertThat(running.getStatus()).isEqualTo(JobStatus.CANCELLED);
+		assertThat(running.getFailureReason()).isNull();
+	}
+
+	@Test
+	void isRunningAttempt_is_false_once_the_job_is_cancelled() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int attempt = running.getAttempt();
+		running.cancel();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		assertThat(service().isRunningAttempt(1L, attempt)).isFalse();
+	}
+
+	@Test
+	void isRunningAttempt_is_true_while_running_with_the_current_attempt() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int attempt = running.getAttempt();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		assertThat(service().isRunningAttempt(1L, attempt)).isTrue();
+	}
 }

@@ -66,6 +66,20 @@ class CandidateGenerationServiceTest {
 		return job;
 	}
 
+	private static JobExecutor.JobContext context(boolean cancelled, Runnable onAiCallStarted) {
+		return new JobExecutor.JobContext() {
+			@Override
+			public void aiCallStarted() {
+				onAiCallStarted.run();
+			}
+
+			@Override
+			public boolean isCancelled() {
+				return cancelled;
+			}
+		};
+	}
+
 	@Test
 	void enqueue_on_unconfirmed_request_never_creates_a_job() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L))
@@ -120,7 +134,7 @@ class CandidateGenerationServiceTest {
 		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
 
 		boolean[] aiCallStarted = {false};
-		Long resultRefId = captor.getValue().run(() -> aiCallStarted[0] = true);
+		Long resultRefId = captor.getValue().run(context(false, () -> aiCallStarted[0] = true));
 
 		assertThat(resultRefId).isEqualTo(900L);
 		assertThat(aiCallStarted[0]).isTrue();
@@ -149,9 +163,41 @@ class CandidateGenerationServiceTest {
 		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
 		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
 
-		assertThatThrownBy(() -> captor.getValue().run(() -> { }))
+		assertThatThrownBy(() -> captor.getValue().run(context(false, () -> { })))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
+		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
+	}
+
+	/** BE-041: 취소 후 늦게 온 AI 응답은 후보로 저장하지 않는다. */
+	@Test
+	void cancelled_before_persisting_is_rejected_without_saving_a_candidate() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
+		Job job = jobWithId(77L);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5")).thenReturn(job);
+		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		FormulaGenerationRequest modalRequest = FormulaGenerationRequest.standard(
+				"citrus woody", "EU", "eau_de_parfum", null, null, 12);
+		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
+
+		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
+				"prototype_ready", "안전 조건 충족", "f-1", 0.9, 42.0,
+				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
+				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
+				null, "headspace-olfactory-twin-2.2",
+				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
+		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
+		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"))).thenReturn(aiResult);
+
+		service.enqueue(5L, 1L);
+
+		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
+
+		assertThatThrownBy(() -> captor.getValue().run(context(true, () -> { })))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.JOB_CANCELLED);
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
 	}
 }

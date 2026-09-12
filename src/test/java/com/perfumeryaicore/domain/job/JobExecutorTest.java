@@ -1,5 +1,6 @@
 package com.perfumeryaicore.domain.job;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -83,5 +84,33 @@ class JobExecutorTest {
 		verify(work, never()).run(any());
 		verify(jobService, never()).markSucceeded(anyLong(), anyInt(), any());
 		verify(jobService, never()).markFailed(anyLong(), anyInt(), anyString(), anyBoolean());
+	}
+
+	/** BE-041: 도메인 코드가 결과를 커밋하기 직전에 확인하는 {@code JobContext#isCancelled()}가
+	 * 실제로 {@link JobService#isRunningAttempt}에 위임되는지 검증한다. */
+	@Test
+	void context_isCancelled_reflects_jobService_isRunningAttempt() {
+		when(jobService.isRunningAttempt(1L, 1)).thenReturn(false);
+		boolean[] cancelled = {true};
+
+		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
+			cancelled[0] = ctx.isCancelled();
+			return null;
+		});
+
+		assertThat(cancelled[0]).isTrue();
+	}
+
+	@Test
+	void context_isCancelled_is_false_while_the_attempt_is_still_running() {
+		when(jobService.isRunningAttempt(1L, 1)).thenReturn(true);
+		boolean[] cancelled = {true};
+
+		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
+			cancelled[0] = ctx.isCancelled();
+			return null;
+		});
+
+		assertThat(cancelled[0]).isFalse();
 	}
 }
