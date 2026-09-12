@@ -33,6 +33,10 @@ public class Project extends BaseTimeEntity {
 	@Column(length = DESCRIPTION_MAX)
 	private String description;
 
+	/** 현재 연결된 {@code ProjectImageAsset}의 ID. 연결된 이미지가 없으면 {@code null}. */
+	@Column(name = "image_asset_id")
+	private Long imageAssetId;
+
 	private Project(String name, String description) {
 		this.name = name;
 		this.description = description;
@@ -50,5 +54,13 @@ public class Project extends BaseTimeEntity {
 		if (description != null) {
 			this.description = description;
 		}
+	}
+
+	public void attachImage(Long assetId) {
+		this.imageAssetId = assetId;
+	}
+
+	public void clearImage() {
+		this.imageAssetId = null;
 	}
 }
