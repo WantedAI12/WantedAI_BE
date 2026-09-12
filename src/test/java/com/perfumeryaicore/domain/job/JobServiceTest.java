@@ -37,7 +37,7 @@ class JobServiceTest {
 			job.markRunning();
 		}
 		if (status == JobStatus.FAILED) {
-			job.markFailed("AI_SERVICE_TIMEOUT", retryable);
+			job.markFailed(job.getAttempt(), "AI_SERVICE_TIMEOUT", retryable);
 		}
 		return job;
 	}
@@ -160,5 +160,54 @@ class JobServiceTest {
 			public void redispatch(Job job) {
 			}
 		};
+	}
+
+	@Test
+	void markRunning_returns_a_new_attempt_number_each_time_it_restarts() {
+		Job pending = job(1L, JobStatus.PENDING, false);
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(pending));
+
+		int firstAttempt = service().markRunning(1L);
+		assertThat(firstAttempt).isEqualTo(1);
+
+		pending.markFailed(firstAttempt, "AI_SERVICE_TIMEOUT", true);
+		pending.resetForRetry();
+		int secondAttempt = service().markRunning(1L);
+		assertThat(secondAttempt).isEqualTo(2);
+	}
+
+	@Test
+	void markSucceeded_from_a_superseded_attempt_is_ignored() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int currentAttempt = running.getAttempt();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		service().markSucceeded(1L, currentAttempt - 1, 999L);
+
+		assertThat(running.getStatus()).isEqualTo(JobStatus.RUNNING);
+		assertThat(running.getResultRefId()).isNull();
+	}
+
+	@Test
+	void markFailed_from_a_superseded_attempt_is_ignored() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int currentAttempt = running.getAttempt();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		service().markFailed(1L, currentAttempt - 1, "STALE_TIMEOUT", true);
+
+		assertThat(running.getStatus()).isEqualTo(JobStatus.RUNNING);
+		assertThat(running.getFailureReason()).isNull();
+	}
+
+	@Test
+	void markAiCallStarted_from_a_superseded_attempt_is_ignored() {
+		Job running = job(1L, JobStatus.RUNNING, false);
+		int currentAttempt = running.getAttempt();
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(running));
+
+		service().markAiCallStarted(1L, currentAttempt - 1);
+
+		assertThat(running.getAiCallStartedAt()).isNull();
 	}
 }

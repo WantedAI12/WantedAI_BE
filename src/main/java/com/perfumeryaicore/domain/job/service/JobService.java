@@ -69,34 +69,56 @@ public class JobService {
 
 	// --- JobExecutor 전용 수명주기 (각각 독립 트랜잭션) ---
 
-	/** @return 실제로 RUNNING으로 전이했으면 true. 작업이 없거나 이미 PENDING이 아니면 false. */
+	/**
+	 * @return 실제로 RUNNING으로 전이했으면 새로 시작된 시도의 attempt 번호(1부터).
+	 *     작업이 없거나 이미 PENDING이 아니면 -1.
+	 */
 	@Transactional
-	public boolean markRunning(Long jobId) {
+	public int markRunning(Long jobId) {
 		Job job = jobRepository.findById(jobId).orElse(null);
 		if (job == null || job.getStatus() != JobStatus.PENDING) {
-			return false;
+			return -1;
 		}
-		job.markRunning();
-		return true;
+		return job.markRunning();
 	}
 
+	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
 	@Transactional
-	public void markAiCallStarted(Long jobId) {
-		jobRepository.findById(jobId).ifPresent(Job::markAiCallStarted);
+	public void markAiCallStarted(Long jobId, int attempt) {
+		jobRepository.findById(jobId).ifPresent(job -> {
+			if (!job.isCurrentAttempt(attempt)) {
+				log.info("[JOB] id={} stale aiCallStarted ignored (attempt={}, current={})",
+						jobId, attempt, job.getAttempt());
+				return;
+			}
+			job.markAiCallStarted(attempt);
+		});
 	}
 
+	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
 	@Transactional
-	public void markSucceeded(Long jobId, Long resultRefId) {
-		jobRepository.findById(jobId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND))
-				.markSucceeded(resultRefId);
+	public void markSucceeded(Long jobId, int attempt, Long resultRefId) {
+		Job job = jobRepository.findById(jobId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND));
+		if (!job.isCurrentAttempt(attempt)) {
+			log.warn("[JOB] id={} stale success ignored (attempt={}, current={})",
+					jobId, attempt, job.getAttempt());
+			return;
+		}
+		job.markSucceeded(attempt, resultRefId);
 	}
 
+	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
 	@Transactional
-	public void markFailed(Long jobId, String reason, boolean retryable) {
-		jobRepository.findById(jobId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND))
-				.markFailed(reason, retryable);
+	public void markFailed(Long jobId, int attempt, String reason, boolean retryable) {
+		Job job = jobRepository.findById(jobId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND));
+		if (!job.isCurrentAttempt(attempt)) {
+			log.warn("[JOB] id={} stale failure ignored (attempt={}, current={})",
+					jobId, attempt, job.getAttempt());
+			return;
+		}
+		job.markFailed(attempt, reason, retryable);
 	}
 
 	@Transactional
