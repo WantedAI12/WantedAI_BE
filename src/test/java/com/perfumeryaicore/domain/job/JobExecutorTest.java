@@ -2,6 +2,7 @@ package com.perfumeryaicore.domain.job;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -29,7 +30,7 @@ class JobExecutorTest {
 	void setUp() {
 		jobService = mock(JobService.class);
 		jobExecutor = new JobExecutor(jobService);
-		when(jobService.markRunning(1L)).thenReturn(true);
+		when(jobService.markRunning(1L)).thenReturn(1);
 	}
 
 	@Test
@@ -39,9 +40,9 @@ class JobExecutorTest {
 			return 999L;
 		});
 
-		verify(jobService).markAiCallStarted(1L);
-		verify(jobService).markSucceeded(1L, 999L);
-		verify(jobService, never()).markFailed(anyLong(), anyString(), anyBoolean());
+		verify(jobService).markAiCallStarted(1L, 1);
+		verify(jobService).markSucceeded(1L, 1, 999L);
+		verify(jobService, never()).markFailed(anyLong(), anyInt(), anyString(), anyBoolean());
 	}
 
 	@Test
@@ -50,8 +51,8 @@ class JobExecutorTest {
 			throw new BusinessException(ErrorCode.AI_SERVICE_TIMEOUT);
 		});
 
-		verify(jobService).markFailed(eq(1L), contains("AI_SERVICE_TIMEOUT"), eq(true));
-		verify(jobService, never()).markSucceeded(anyLong(), any());
+		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SERVICE_TIMEOUT"), eq(true));
+		verify(jobService, never()).markSucceeded(anyLong(), anyInt(), any());
 	}
 
 	@Test
@@ -60,7 +61,7 @@ class JobExecutorTest {
 			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 		});
 
-		verify(jobService).markFailed(eq(1L), contains("AI_SCHEMA_VERSION_MISMATCH"), eq(false));
+		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SCHEMA_VERSION_MISMATCH"), eq(false));
 	}
 
 	@Test
@@ -69,18 +70,18 @@ class JobExecutorTest {
 			throw new IllegalArgumentException("boom");
 		});
 
-		verify(jobService).markFailed(eq(1L), contains("UNEXPECTED"), eq(false));
+		verify(jobService).markFailed(eq(1L), eq(1), contains("UNEXPECTED"), eq(false));
 	}
 
 	@Test
 	void not_runnable_job_is_skipped_and_work_never_runs() {
-		when(jobService.markRunning(2L)).thenReturn(false);
+		when(jobService.markRunning(2L)).thenReturn(-1);
 		JobWork work = mock(JobWork.class);
 
 		jobExecutor.execute(2L, JobType.CANDIDATE_GENERATION, work);
 
 		verify(work, never()).run(any());
-		verify(jobService, never()).markSucceeded(anyLong(), any());
-		verify(jobService, never()).markFailed(anyLong(), anyString(), anyBoolean());
+		verify(jobService, never()).markSucceeded(anyLong(), anyInt(), any());
+		verify(jobService, never()).markFailed(anyLong(), anyInt(), anyString(), anyBoolean());
 	}
 }

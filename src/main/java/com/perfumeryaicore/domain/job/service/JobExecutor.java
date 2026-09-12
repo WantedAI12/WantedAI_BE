@@ -52,24 +52,25 @@ public class JobExecutor {
 
 	@Async("jobTaskExecutor")
 	public void execute(Long jobId, JobType jobType, JobWork work) {
-		if (!jobService.markRunning(jobId)) {
+		int attempt = jobService.markRunning(jobId);
+		if (attempt < 0) {
 			log.info("[JOB] execute skipped: job {} not runnable", jobId);
 			return;
 		}
-		log.info("[JOB] id={} type={} RUNNING", jobId, jobType);
+		log.info("[JOB] id={} type={} attempt={} RUNNING", jobId, jobType, attempt);
 
 		try {
-			Long resultRefId = work.run(() -> jobService.markAiCallStarted(jobId));
-			jobService.markSucceeded(jobId, resultRefId);
-			log.info("[JOB] id={} type={} SUCCEEDED resultRefId={}", jobId, jobType, resultRefId);
+			Long resultRefId = work.run(() -> jobService.markAiCallStarted(jobId, attempt));
+			jobService.markSucceeded(jobId, attempt, resultRefId);
+			log.info("[JOB] id={} type={} attempt={} SUCCEEDED resultRefId={}", jobId, jobType, attempt, resultRefId);
 		} catch (BusinessException e) {
 			boolean retryable = RETRYABLE_ERRORS.contains(e.getErrorCode());
-			jobService.markFailed(jobId, e.getErrorCode().name() + ": " + e.getMessage(), retryable);
-			log.warn("[JOB] id={} type={} FAILED code={} retryable={}",
-					jobId, jobType, e.getErrorCode().name(), retryable);
+			jobService.markFailed(jobId, attempt, e.getErrorCode().name() + ": " + e.getMessage(), retryable);
+			log.warn("[JOB] id={} type={} attempt={} FAILED code={} retryable={}",
+					jobId, jobType, attempt, e.getErrorCode().name(), retryable);
 		} catch (RuntimeException e) {
-			jobService.markFailed(jobId, "UNEXPECTED: " + e.getClass().getSimpleName(), false);
-			log.error("[JOB] id={} type={} FAILED unexpectedly", jobId, jobType, e);
+			jobService.markFailed(jobId, attempt, "UNEXPECTED: " + e.getClass().getSimpleName(), false);
+			log.error("[JOB] id={} type={} attempt={} FAILED unexpectedly", jobId, jobType, attempt, e);
 		}
 	}
 }

@@ -54,6 +54,15 @@ public class Job extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean retryable;
 
+	/**
+	 * 이 작업의 실행 세대(generation) 번호. PENDING → RUNNING 전이마다 1씩 증가한다.
+	 * 재시도로 새 시도가 시작된 뒤 이전 시도의 비동기 응답이 뒤늦게 도착해도, 호출자가 들고 있던
+	 * attempt 값과 현재 값이 달라지므로 {@link com.perfumeryaicore.domain.job.service.JobService}가
+	 * 그 응답을 무시할 수 있다.
+	 */
+	@Column(nullable = false)
+	private int attempt;
+
 	@Column(name = "failure_reason", length = 500)
 	private String failureReason;
 
@@ -85,6 +94,7 @@ public class Job extends BaseTimeEntity {
 		this.inputPayload = inputPayload;
 		this.status = JobStatus.PENDING;
 		this.retryable = false;
+		this.attempt = 0;
 	}
 
 	public static Job pending(Long projectId, JobType jobType, Long createdBy, String inputPayload) {
@@ -93,19 +103,32 @@ public class Job extends BaseTimeEntity {
 
 	// --- 상태 전이 ---
 
-	/** 비동기 워커가 작업을 집어 AI 호출 대기열에 넣었다. */
-	public void markRunning() {
+	/**
+	 * 비동기 워커가 작업을 집어 AI 호출 대기열에 넣었다. 새 시도이므로 attempt를 증가시킨다.
+	 *
+	 * @return 이번에 시작된 시도의 attempt 번호
+	 */
+	public int markRunning() {
 		requireStatus(JobStatus.PENDING);
 		this.status = JobStatus.RUNNING;
 		this.aiCallQueuedAt = LocalDateTime.now();
+		this.attempt++;
+		return this.attempt;
 	}
 
-	/** 직렬화 게이트를 통과해 실제 AI 호출을 시작했다. */
-	public void markAiCallStarted() {
+	/** 직렬화 게이트를 통과해 실제 AI 호출을 시작했다. {@code attempt}가 현재 시도와 다르면 무시한다. */
+	public void markAiCallStarted(int attempt) {
+		if (!isCurrentAttempt(attempt)) {
+			return;
+		}
 		this.aiCallStartedAt = LocalDateTime.now();
 	}
 
-	public void markSucceeded(Long resultRefId) {
+	/** {@code attempt}가 현재 시도와 다르면(이전 시도의 지연 응답이면) 조용히 무시한다. */
+	public void markSucceeded(int attempt, Long resultRefId) {
+		if (!isCurrentAttempt(attempt)) {
+			return;
+		}
 		requireStatus(JobStatus.RUNNING);
 		this.status = JobStatus.SUCCEEDED;
 		this.resultRefId = resultRefId;
@@ -113,11 +136,20 @@ public class Job extends BaseTimeEntity {
 		this.retryable = false;
 	}
 
-	public void markFailed(String reason, boolean retryable) {
+	/** {@code attempt}가 현재 시도와 다르면(이전 시도의 지연 응답이면) 조용히 무시한다. */
+	public void markFailed(int attempt, String reason, boolean retryable) {
+		if (!isCurrentAttempt(attempt)) {
+			return;
+		}
 		requireStatus(JobStatus.RUNNING);
 		this.status = JobStatus.FAILED;
 		this.failureReason = truncate(reason);
 		this.retryable = retryable;
+	}
+
+	/** 주어진 attempt 번호가 이 작업의 현재(가장 최근) 시도인지. */
+	public boolean isCurrentAttempt(int attempt) {
+		return this.attempt == attempt;
 	}
 
 	public void cancel() {

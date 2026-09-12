@@ -19,9 +19,9 @@ class JobStateMachineTest {
 	@Test
 	void running_then_succeeded_carries_result_ref() {
 		Job job = newJob();
-		job.markRunning();
-		job.markAiCallStarted();
-		job.markSucceeded(42L);
+		int attempt = job.markRunning();
+		job.markAiCallStarted(attempt);
+		job.markSucceeded(attempt, 42L);
 
 		assertThat(job.getStatus()).isEqualTo(JobStatus.SUCCEEDED);
 		assertThat(job.getResultRefId()).isEqualTo(42L);
@@ -33,8 +33,8 @@ class JobStateMachineTest {
 	@Test
 	void failed_retryable_can_be_reset_and_run_again() {
 		Job job = newJob();
-		job.markRunning();
-		job.markFailed("AI_SERVICE_TIMEOUT: timeout", true);
+		int firstAttempt = job.markRunning();
+		job.markFailed(firstAttempt, "AI_SERVICE_TIMEOUT: timeout", true);
 
 		assertThat(job.getStatus()).isEqualTo(JobStatus.FAILED);
 		assertThat(job.isRetryable()).isTrue();
@@ -45,15 +45,16 @@ class JobStateMachineTest {
 		assertThat(job.isRetryable()).isFalse();
 		assertThat(job.getAiCallQueuedAt()).isNull();
 
-		job.markRunning();
+		int secondAttempt = job.markRunning();
 		assertThat(job.getStatus()).isEqualTo(JobStatus.RUNNING);
+		assertThat(secondAttempt).isEqualTo(firstAttempt + 1);
 	}
 
 	@Test
 	void failed_not_retryable_cannot_be_reset() {
 		Job job = newJob();
-		job.markRunning();
-		job.markFailed("AI_SCHEMA_VERSION_MISMATCH", false);
+		int attempt = job.markRunning();
+		job.markFailed(attempt, "AI_SCHEMA_VERSION_MISMATCH", false);
 
 		assertThatThrownBy(job::resetForRetry)
 				.isInstanceOf(BusinessException.class)
@@ -74,8 +75,8 @@ class JobStateMachineTest {
 	@Test
 	void terminal_job_cannot_be_cancelled() {
 		Job job = newJob();
-		job.markRunning();
-		job.markSucceeded(1L);
+		int attempt = job.markRunning();
+		job.markSucceeded(attempt, 1L);
 
 		assertThatThrownBy(job::cancel)
 				.isInstanceOf(BusinessException.class)
@@ -85,9 +86,19 @@ class JobStateMachineTest {
 	@Test
 	void succeeded_transition_requires_running_state() {
 		Job job = newJob();
-		assertThatThrownBy(() -> job.markSucceeded(1L))
+		assertThatThrownBy(() -> job.markSucceeded(job.getAttempt(), 1L))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.JOB_ILLEGAL_STATE);
+	}
+
+	@Test
+	void succeeded_with_a_stale_attempt_number_is_silently_ignored_instead_of_throwing() {
+		Job job = newJob();
+		int attempt = job.markRunning();
+		job.markSucceeded(attempt - 1, 999L);
+
+		assertThat(job.getStatus()).isEqualTo(JobStatus.RUNNING);
+		assertThat(job.getResultRefId()).isNull();
 	}
 
 	@Test
