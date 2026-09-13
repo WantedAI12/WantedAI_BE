@@ -21,6 +21,7 @@ import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 class JobExecutorTest {
 
@@ -72,6 +73,19 @@ class JobExecutorTest {
 		});
 
 		verify(jobService).markFailed(eq(1L), eq(1), contains("UNEXPECTED"), eq(false));
+	}
+
+	/** BE-043: 다른 워커가 이 작업을 먼저 선점(커밋)해 낙관적 잠금 충돌이 나면 본문을 실행하지 않고 건너뛴다. */
+	@Test
+	void a_job_lost_to_a_concurrent_preemption_is_skipped_and_work_never_runs() {
+		when(jobService.markRunning(3L)).thenThrow(new ObjectOptimisticLockingFailureException(Object.class, 3L));
+		JobWork work = mock(JobWork.class);
+
+		jobExecutor.execute(3L, JobType.CANDIDATE_GENERATION, work);
+
+		verify(work, never()).run(any());
+		verify(jobService, never()).markSucceeded(anyLong(), anyInt(), any());
+		verify(jobService, never()).markFailed(anyLong(), anyInt(), anyString(), anyBoolean());
 	}
 
 	@Test

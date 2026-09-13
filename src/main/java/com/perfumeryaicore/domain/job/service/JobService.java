@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 비동기 작업 생성·조회·재시도·취소.
@@ -152,8 +154,27 @@ public class JobService {
 			throw new BusinessException(ErrorCode.JOB_RETRY_NOT_SUPPORTED);
 		}
 		job.resetForRetry();
-		handler.redispatch(job);
+		dispatchAfterCommit(() -> handler.redispatch(job));
 		log.info("[JOB] id={} type={} retry dispatched", jobId, job.getJobType());
+	}
+
+	/**
+	 * BE-042: 이 트랜잭션이 실제로 커밋된 뒤에만 {@code action}(비동기 워커 dispatch)을 실행한다.
+	 * 커밋 전에 바로 dispatch하면, 비동기 워커가 아직 커밋되지 않은(예: 여전히 FAILED인) 상태를
+	 * 읽고 실행을 건너뛰어 작업이 사실상 영구 PENDING으로 남을 수 있다. 활성 트랜잭션이 없으면
+	 * (테스트 등) 즉시 실행한다.
+	 */
+	private void dispatchAfterCommit(Runnable action) {
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			action.run();
+			return;
+		}
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				action.run();
+			}
+		});
 	}
 
 	@Transactional

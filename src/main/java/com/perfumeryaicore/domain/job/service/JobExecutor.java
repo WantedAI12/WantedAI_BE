@@ -7,6 +7,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -59,7 +60,14 @@ public class JobExecutor {
 
 	@Async("jobTaskExecutor")
 	public void execute(Long jobId, JobType jobType, JobWork work) {
-		int attempt = jobService.markRunning(jobId);
+		int attempt;
+		try {
+			attempt = jobService.markRunning(jobId);
+		} catch (ObjectOptimisticLockingFailureException e) {
+			// BE-043: 다른 워커가 이 시도를 먼저 선점해 커밋했다. 본문을 두 번 실행하지 않고 조용히 넘어간다.
+			log.info("[JOB] id={} execute skipped: lost concurrent preemption", jobId);
+			return;
+		}
 		if (attempt < 0) {
 			log.info("[JOB] execute skipped: job {} not runnable", jobId);
 			return;
