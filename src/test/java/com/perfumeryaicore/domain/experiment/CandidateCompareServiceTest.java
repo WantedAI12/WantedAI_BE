@@ -68,6 +68,32 @@ class CandidateCompareServiceTest {
 				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_NOT_FOUND);
 	}
 
+	/** BE-084: 빈 후보 ID 목록은 400으로 거부한다. */
+	@Test
+	void an_empty_id_list_is_rejected() {
+		assertThatThrownBy(() -> service.compare(5L, List.of(), 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+	}
+
+	/** BE-084: 중복된 후보 ID는 400으로 거부한다. */
+	@Test
+	void duplicate_ids_are_rejected() {
+		assertThatThrownBy(() -> service.compare(5L, List.of(1L, 2L, 1L), 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+	}
+
+	/** BE-084: 개수 상한(10개)을 넘는 요청은 400으로 거부한다. */
+	@Test
+	void more_than_the_maximum_number_of_candidates_is_rejected() {
+		List<Long> tooMany = java.util.stream.LongStream.rangeClosed(1, 11).boxed().toList();
+
+		assertThatThrownBy(() -> service.compare(5L, tooMany, 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+	}
+
 	@Test
 	void missing_current_version_yields_null_cost_and_stability() {
 		CandidateResponse noVersion = new CandidateResponse(1L, 5L, CandidateStatus.UNDER_REVIEW, null);

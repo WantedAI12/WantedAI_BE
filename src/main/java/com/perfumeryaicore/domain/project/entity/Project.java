@@ -1,6 +1,8 @@
 package com.perfumeryaicore.domain.project.entity;
 
 import com.perfumeryaicore.global.common.BaseTimeEntity;
+import com.perfumeryaicore.global.exception.BusinessException;
+import com.perfumeryaicore.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -46,9 +48,16 @@ public class Project extends BaseTimeEntity {
 		return new Project(name, description);
 	}
 
-	/** 부분 수정. {@code null}이 아닌 값만 반영한다. */
+	/**
+	 * 부분 수정. {@code null}이 아닌 값만 반영한다. 이름은 지정하면(null이 아니면) 공백일 수
+	 * 없다 — 생성 시 {@code @NotBlank}와 달리 PATCH는 "값 없음(null)"과 "빈 값으로 바꿈"을
+	 * 구분해야 해서 DTO 애노테이션만으로는 막을 수 없다(BE-084).
+	 */
 	public void updateInfo(String name, String description) {
 		if (name != null) {
+			if (name.isBlank()) {
+				throw new BusinessException(ErrorCode.VALIDATION_FAILED, "프로젝트 이름은 공백일 수 없습니다.");
+			}
 			this.name = name;
 		}
 		if (description != null) {
