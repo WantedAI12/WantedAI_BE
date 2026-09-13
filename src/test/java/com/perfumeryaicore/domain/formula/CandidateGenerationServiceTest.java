@@ -130,7 +130,12 @@ class CandidateGenerationServiceTest {
 				null, "headspace-olfactory-twin-2.2",
 				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
-		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"))).thenReturn(aiResult);
+		// BE-048: 생산 코드가 이제 aiCallStarted를 직접 호출하지 않고, 클라이언트의 '게이트 통과 직후'
+		// 콜백으로 넘긴다. 실제 클라이언트가 게이트 통과 시점에 그 콜백을 실행하는 것처럼 흉내낸다.
+		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenAnswer(inv -> {
+			((Runnable) inv.getArgument(2)).run();
+			return aiResult;
+		});
 		when(candidatePersistenceService.persist(5L, 10L, 1L, 77L, aiResult)).thenReturn(900L);
 
 		service.enqueue(5L, 1L);
@@ -161,7 +166,7 @@ class CandidateGenerationServiceTest {
 				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", null, null, null,
 				List.of(), null, null, null, null, null, null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 800L);
-		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"))).thenReturn(aiResult);
+		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 
 		service.enqueue(5L, 1L);
 
@@ -207,7 +212,7 @@ class CandidateGenerationServiceTest {
 				null, "headspace-olfactory-twin-2.2",
 				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
-		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"))).thenReturn(aiResult);
+		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 
 		service.enqueue(5L, 1L);
 
