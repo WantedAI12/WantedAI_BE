@@ -69,7 +69,8 @@ public class AuthService {
 	@Transactional(noRollbackFor = BusinessException.class)
 	public TokenResponse refresh(String rawRefreshToken) {
 		String hash = tokenHasher.hash(rawRefreshToken);
-		RefreshToken stored = refreshTokenRepository.findByTokenHash(hash)
+		// BE-011: 잠금 조회로 동시 회전 요청을 직렬화한다 — 자세한 이유는 리포지토리 쪽 주석 참고.
+		RefreshToken stored = refreshTokenRepository.findByTokenHashForUpdate(hash)
 				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
 
 		LocalDateTime now = LocalDateTime.now();
