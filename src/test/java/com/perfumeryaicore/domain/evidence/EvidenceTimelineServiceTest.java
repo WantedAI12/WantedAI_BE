@@ -38,7 +38,7 @@ class EvidenceTimelineServiceTest {
 				1200L, 900L, null, List.of(), 42.0, "근거", new GenerationMeta("modal", false, "prototype_ready", 1L),
 				null, 7L, t0)));
 		when(approvalGateService.history(900L, 1L)).thenReturn(List.of(new ApprovalGateResponse(
-				1L, 900L, ApprovalDecision.APPROVED, "IFRA 충족", 3L, t2)));
+				1L, 900L, 1200L, ApprovalDecision.APPROVED, "IFRA 충족", 3L, t2)));
 		when(experimentStatusService.history(900L, 1L)).thenReturn(List.of(new ExperimentStatusLogResponse(
 				900L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, 5L, t1)));
 

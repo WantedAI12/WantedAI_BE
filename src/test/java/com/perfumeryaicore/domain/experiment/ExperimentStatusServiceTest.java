@@ -48,7 +48,8 @@ class ExperimentStatusServiceTest {
 
 	@Test
 	void confirming_for_experiment_requires_safety_gate_approval() {
-		when(approvalGateService.isApproved(500L)).thenReturn(false);
+		when(candidateService.getCurrentVersionId(500L, 1L)).thenReturn(900L);
+		when(approvalGateService.isApprovedForVersion(500L, 900L)).thenReturn(false);
 
 		assertThatThrownBy(() -> service.changeStatus(500L, 1L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT))
 				.isInstanceOf(BusinessException.class)
@@ -60,7 +61,8 @@ class ExperimentStatusServiceTest {
 
 	@Test
 	void confirming_for_experiment_succeeds_when_approved_and_logs_the_change() {
-		when(approvalGateService.isApproved(500L)).thenReturn(true);
+		when(candidateService.getCurrentVersionId(500L, 1L)).thenReturn(900L);
+		when(approvalGateService.isApprovedForVersion(500L, 900L)).thenReturn(true);
 		when(logRepository.save(any(ExperimentStatusLog.class)))
 				.thenReturn(logEntry(CandidateStatus.CONFIRMED_FOR_EXPERIMENT));
 
@@ -71,13 +73,24 @@ class ExperimentStatusServiceTest {
 		assertThat(response.status()).isEqualTo(CandidateStatus.CONFIRMED_FOR_EXPERIMENT);
 	}
 
+	/** BE-032: 승인 이후 후보 버전이 바뀌었으면(과거 버전 대상 승인) 실험 확정을 거부한다. */
+	@Test
+	void confirming_for_experiment_is_blocked_when_the_approval_targeted_an_older_version() {
+		when(candidateService.getCurrentVersionId(500L, 1L)).thenReturn(901L);
+		when(approvalGateService.isApprovedForVersion(500L, 901L)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.changeStatus(500L, 1L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SAFETY_GATE_NOT_APPROVED);
+	}
+
 	@Test
 	void other_transitions_do_not_consult_the_safety_gate() {
 		when(logRepository.save(any(ExperimentStatusLog.class))).thenReturn(logEntry(CandidateStatus.REJECTED));
 
 		service.changeStatus(500L, 1L, CandidateStatus.REJECTED);
 
-		verify(approvalGateService, never()).isApproved(500L);
+		verify(approvalGateService, never()).isApprovedForVersion(any(), any());
 		verify(candidateService).transitionStatus(500L, 1L, CandidateStatus.REJECTED);
 	}
 

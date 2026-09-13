@@ -41,8 +41,11 @@ public class ExperimentStatusService {
 		Long projectId = candidateService.getProjectId(candidateId, memberId);
 		accessGuard.requireRole(projectId, memberId, TRANSITION_ROLES);
 
-		if (target == CandidateStatus.CONFIRMED_FOR_EXPERIMENT && !approvalGateService.isApproved(candidateId)) {
-			throw new BusinessException(ErrorCode.SAFETY_GATE_NOT_APPROVED);
+		if (target == CandidateStatus.CONFIRMED_FOR_EXPERIMENT) {
+			Long currentVersionId = candidateService.getCurrentVersionId(candidateId, memberId);
+			if (!approvalGateService.isApprovedForVersion(candidateId, currentVersionId)) {
+				throw new BusinessException(ErrorCode.SAFETY_GATE_NOT_APPROVED);
+			}
 		}
 
 		candidateService.transitionStatus(candidateId, memberId, target);
