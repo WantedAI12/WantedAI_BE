@@ -12,6 +12,7 @@ import com.perfumeryaicore.domain.supply.dto.response.SupplyReviewDecisionRespon
 import com.perfumeryaicore.domain.supply.entity.SupplyChange;
 import com.perfumeryaicore.domain.supply.entity.SupplyChangeAffectedCandidate;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecision;
+import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecisionType;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeAffectedCandidateRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyReviewDecisionRepository;
@@ -86,7 +87,12 @@ public class SupplyChangeService {
 		SupplyReviewDecision decision = reviewDecisionRepository.save(SupplyReviewDecision.record(
 				candidateId, dto.supplyChangeId(), dto.decision(), dto.rationale(), memberId));
 
-		if (dto.supplyChangeId() != null) {
+		// BE-079: REVISE_FORMULA(조향식 수정 예정)는 아직 아무것도 해결되지 않았다 - 실제 재평가가
+		// 끝난 게 아니므로 REVIEWED로 표시하지 않는다. KEEP_FORMULA/DISCARD_CANDIDATE만 확정된
+		// 결정이므로 이때만 영향 행을 REVIEWED로 닫는다.
+		boolean isFinalDecision = dto.decision() == SupplyReviewDecisionType.KEEP_FORMULA
+				|| dto.decision() == SupplyReviewDecisionType.DISCARD_CANDIDATE;
+		if (dto.supplyChangeId() != null && isFinalDecision) {
 			affectedCandidateRepository
 					.findBySupplyChangeIdAndCandidateId(dto.supplyChangeId(), candidateId)
 					.ifPresent(SupplyChangeAffectedCandidate::markReviewed);
