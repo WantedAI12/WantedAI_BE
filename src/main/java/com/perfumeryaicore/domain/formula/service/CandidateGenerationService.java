@@ -86,8 +86,9 @@ public class CandidateGenerationService {
 		FragranceRequest request = fragranceRequestService.getConfirmedRequest(requestId, memberId);
 		FormulaGenerationRequest modalRequest = formulaRequestMapper.toModalRequest(request);
 
-		context.aiCallStarted();
-		PerfumeryAiResult result = perfumeryAiClient.generateFormula(modalRequest, "job-" + jobId);
+		// BE-048: 동시성 게이트를 실제로 통과한 직후에만 시작을 기록한다 - 이전에는 세마포어
+		// 대기열에서 기다린 시간까지 'AI 호출 경과 시간'에 섞여 들어갔다.
+		PerfumeryAiResult result = perfumeryAiClient.generateFormula(modalRequest, "job-" + jobId, context::aiCallStarted);
 
 		if (context.isCancelled()) {
 			log.info("[FORMULA] job={} request={} cancelled before persisting result", jobId, requestId);

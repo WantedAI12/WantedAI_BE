@@ -81,6 +81,7 @@ public enum ErrorCode {
 	JOB_RETRY_NOT_SUPPORTED(HttpStatus.NOT_IMPLEMENTED, "이 작업 종류는 아직 재시도를 지원하지 않습니다."),
 	JOB_ILLEGAL_STATE(HttpStatus.CONFLICT, "작업 상태 전이가 올바르지 않습니다."),
 	JOB_CANCELLED(HttpStatus.CONFLICT, "작업이 취소되어 결과를 저장하지 않았습니다."),
+	JOB_QUEUE_SATURATED(HttpStatus.SERVICE_UNAVAILABLE, "작업 큐가 가득 차 있습니다. 잠시 후 다시 시도해 주세요."),
 
 	// 조향 AI(Modal) 연동
 	AI_AUTH_MISCONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "조향 AI 인증 설정 오류로 서비스에 연결할 수 없습니다."),

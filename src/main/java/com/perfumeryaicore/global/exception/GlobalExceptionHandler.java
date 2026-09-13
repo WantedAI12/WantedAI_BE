@@ -3,6 +3,7 @@ package com.perfumeryaicore.global.exception;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.ApiResponse.FieldErrorDetail;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +44,15 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(OptimisticLockingFailureException e) {
 		log.info("Optimistic locking conflict: {}", e.getMessage());
 		ErrorCode code = ErrorCode.CONCURRENT_MODIFICATION;
+		return ResponseEntity.status(code.getStatus())
+				.body(ApiResponse.error(code.name(), code.getMessage()));
+	}
+
+	/** 작업 큐 포화(BE-047). 호출자 스레드가 대신 실행하지 않고 즉시 503으로 응답한다. */
+	@ExceptionHandler(RejectedExecutionException.class)
+	public ResponseEntity<ApiResponse<Void>> handleQueueSaturated(RejectedExecutionException e) {
+		log.warn("Job queue saturated: {}", e.getMessage());
+		ErrorCode code = ErrorCode.JOB_QUEUE_SATURATED;
 		return ResponseEntity.status(code.getStatus())
 				.body(ApiResponse.error(code.name(), code.getMessage()));
 	}

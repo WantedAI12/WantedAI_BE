@@ -66,8 +66,8 @@ public class CatalogSyncService {
 	}
 
 	private Long run(Long jobId, Long projectId, Long memberId, JobExecutor.JobContext context) {
-		context.aiCallStarted();
-		String raw = perfumeryAiClient.catalogRaw("job-" + jobId);
+		// BE-048: 동시성 게이트를 실제로 통과한 직후에만 시작을 기록한다.
+		String raw = perfumeryAiClient.catalogRaw("job-" + jobId, context::aiCallStarted);
 		JsonNode snapshot = parse(raw);
 
 		if (context.isCancelled()) {

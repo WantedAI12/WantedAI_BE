@@ -140,6 +140,23 @@ class PerfumeryAiClientTest {
 				.extracting("errorCode").isEqualTo(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 	}
 
+	/** BE-048: 게이트 통과 콜백은 재시도 횟수와 무관하게 호출당 정확히 한 번만 실행된다. */
+	@Test
+	void slot_acquired_callback_fires_once_per_call_even_across_retries() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.TOO_MANY_REQUESTS, "{}", calls));
+		AtomicInteger callbackCount = new AtomicInteger();
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t",
+				callbackCount::incrementAndGet))
+				.isInstanceOf(BusinessException.class);
+
+		assertThat(calls.get()).isEqualTo(2); // 원래 시도 + 재시도 1회
+		assertThat(callbackCount.get()).isEqualTo(1); // 콜백은 게이트를 통과한 시점에 한 번뿐
+	}
+
 	@Test
 	void no_safe_match_with_empty_recipe_is_accepted() {
 		AtomicInteger calls = new AtomicInteger();

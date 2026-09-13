@@ -10,6 +10,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -63,7 +64,15 @@ public class PerfumeryAiClient {
 
 	/** 원료 카탈로그 원문. 로컬 미러 동기화가 원본을 그대로 보관할 수 있도록 문자열로 반환한다. */
 	public String catalogRaw(String traceId) {
-		return serializedCall("catalog", traceId, () -> webClient.get().uri("/v1/catalog")
+		return catalogRaw(traceId, null);
+	}
+
+	/**
+	 * @param onSlotAcquired 동시성 게이트를 실제로 통과한 직후(대기열 통과 후) 정확히 한 번 호출된다.
+	 *     재시도가 여러 번 일어나도 게이트를 다시 통과하지 않으므로 한 번만 호출된다(BE-048).
+	 */
+	public String catalogRaw(String traceId, Runnable onSlotAcquired) {
+		return serializedCall("catalog", traceId, onSlotAcquired, () -> webClient.get().uri("/v1/catalog")
 				.retrieve().bodyToMono(String.class).block(blockTimeout()));
 	}
 
@@ -74,12 +83,26 @@ public class PerfumeryAiClient {
 	 * @param traceId 사용자 요청·AI 호출·결과를 같은 로그 흐름으로 잇는 내부 식별자
 	 */
 	public PerfumeryAiResult generateFormula(FormulaGenerationRequest request, String traceId) {
-		long start = System.currentTimeMillis();
-		String body = serializedCall("formulas", traceId, () -> webClient.post().uri("/v1/formulas")
+		return generateFormula(request, traceId, null);
+	}
+
+	/**
+	 * @param onSlotAcquired 동시성 게이트를 실제로 통과한 직후(BE-048) 정확히 한 번 호출된다. 그 시점부터
+	 *     지연시간을 측정하므로, 다른 호출이 먼저 게이트를 쓰고 있어 대기한 시간은 지연시간에 섞이지 않는다.
+	 */
+	public PerfumeryAiResult generateFormula(FormulaGenerationRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas", traceId, markStart, () -> webClient.post().uri("/v1/formulas")
 				.contentType(MediaType.APPLICATION_JSON)
 				.bodyValue(request)
 				.retrieve().bodyToMono(String.class).block(blockTimeout()));
-		long latency = System.currentTimeMillis() - start;
+		long latency = System.currentTimeMillis() - startedAt.get();
 
 		FormulaGenerationResponse parsed = parse(body, FormulaGenerationResponse.class);
 		verifyFormulaShape(parsed, traceId);
@@ -88,10 +111,17 @@ public class PerfumeryAiClient {
 
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---
 
-	private String serializedCall(String op, String traceId, Supplier<String> call) {
+	/**
+	 * @param onSlotAcquired 동시성 게이트를 획득한 직후, 큐 대기·재시도 시간을 뺀 시각을 표시하려는
+	 *     호출자에게 신호를 주는 훅. 없으면 {@code null}.
+	 */
+	private String serializedCall(String op, String traceId, Runnable onSlotAcquired, Supplier<String> call) {
 		requireAuthToken(op, traceId);
 		acquireGate(op, traceId);
 		try {
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
 			throttle(op, traceId);
 			return withRetry(op, traceId, call);
 		} finally {
