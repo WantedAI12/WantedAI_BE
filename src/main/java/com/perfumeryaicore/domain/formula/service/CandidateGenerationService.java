@@ -5,11 +5,13 @@ import com.perfumeryaicore.domain.job.entity.Job;
 import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.service.JobExecutor;
 import com.perfumeryaicore.domain.job.service.JobService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -26,12 +28,18 @@ import org.springframework.stereotype.Service;
 @Service
 public class CandidateGenerationService {
 
+	/** SUPPLIER·AUDITOR는 후보 생성을 트리거할 수 없다(BE-004). */
+	private static final ProjectRole[] TRIGGER_ROLES = {
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+	};
+
 	private final FragranceRequestService fragranceRequestService;
 	private final JobService jobService;
 	private final JobExecutor jobExecutor;
 	private final PerfumeryAiClient perfumeryAiClient;
 	private final FormulaRequestMapper formulaRequestMapper;
 	private final CandidatePersistenceService candidatePersistenceService;
+	private final ProjectAccessGuard accessGuard;
 
 	/**
 	 * {@code jobService}는 {@code @Lazy}로 받는다: {@code JobService}가 {@code JobRetryHandler}
@@ -45,18 +53,21 @@ public class CandidateGenerationService {
 			JobExecutor jobExecutor,
 			PerfumeryAiClient perfumeryAiClient,
 			FormulaRequestMapper formulaRequestMapper,
-			CandidatePersistenceService candidatePersistenceService) {
+			CandidatePersistenceService candidatePersistenceService,
+			ProjectAccessGuard accessGuard) {
 		this.fragranceRequestService = fragranceRequestService;
 		this.jobService = jobService;
 		this.jobExecutor = jobExecutor;
 		this.perfumeryAiClient = perfumeryAiClient;
 		this.formulaRequestMapper = formulaRequestMapper;
 		this.candidatePersistenceService = candidatePersistenceService;
+		this.accessGuard = accessGuard;
 	}
 
 	/** 트리거 API에서 호출. 확정되지 않은 요청이면 작업을 만들지 않고 즉시 409. */
 	public JobResponse enqueue(Long requestId, Long memberId) {
 		FragranceRequest request = fragranceRequestService.getConfirmedRequest(requestId, memberId);
+		accessGuard.requireRole(request.getProjectId(), memberId, TRIGGER_ROLES);
 
 		Job job = jobService.enqueue(request.getProjectId(), JobType.CANDIDATE_GENERATION, memberId,
 				String.valueOf(requestId));

@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
 import com.perfumeryaicore.domain.request.repository.FragranceRequestRepository;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -18,12 +19,19 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 자연어 향 요청의 생성·조회·보완·확정. 외부 AI 호출 없이 정규화와 검증만 수행한다.
  * 접근 제어는 요청이 속한 프로젝트의 멤버십 기준({@link ProjectAccessGuard}).
+ *
+ * <p>쓰기(생성/수정/확정)는 멤버십만으로 부족하다 — SUPPLIER·AUDITOR 같은 읽기·외부 협업 역할이
+ * 요청을 만들거나 바꾸지 못하게 {@link #WRITE_ROLES}로 제한한다(BE-004).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FragranceRequestService {
+
+	private static final ProjectRole[] WRITE_ROLES = {
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+	};
 
 	private final FragranceRequestRepository requestRepository;
 	private final ProjectAccessGuard accessGuard;
@@ -33,6 +41,7 @@ public class FragranceRequestService {
 		if (!accessGuard.isMember(projectId, memberId)) {
 			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
 		}
+		accessGuard.requireRole(projectId, memberId, WRITE_ROLES);
 		FragranceRequest request = FragranceRequest.create(projectId, memberId, dto.rawText());
 		request.applyUpdate(
 				null,
@@ -67,6 +76,7 @@ public class FragranceRequestService {
 	@Transactional
 	public FragranceRequestResponse update(Long requestId, Long memberId, UpdateFragranceRequestRequest dto) {
 		FragranceRequest request = getAccessibleRequest(requestId, memberId);
+		accessGuard.requireRole(request.getProjectId(), memberId, WRITE_ROLES);
 		request.applyUpdate(
 				dto.rawText(),
 				dto.productCategory(),
@@ -84,6 +94,7 @@ public class FragranceRequestService {
 	@Transactional
 	public FragranceRequestResponse confirm(Long requestId, Long memberId) {
 		FragranceRequest request = getAccessibleRequest(requestId, memberId);
+		accessGuard.requireRole(request.getProjectId(), memberId, WRITE_ROLES);
 		request.confirm();
 		log.info("[REQUEST] id={} CONFIRMED by={}", requestId, memberId);
 		return FragranceRequestResponse.from(request);
