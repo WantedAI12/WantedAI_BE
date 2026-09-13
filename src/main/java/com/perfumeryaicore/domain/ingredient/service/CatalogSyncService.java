@@ -70,6 +70,11 @@ public class CatalogSyncService {
 		String raw = perfumeryAiClient.catalogRaw("job-" + jobId);
 		JsonNode snapshot = parse(raw);
 
+		if (context.isCancelled()) {
+			log.info("[CATALOG-SYNC] job={} cancelled before persisting result", jobId);
+			throw new BusinessException(ErrorCode.JOB_CANCELLED);
+		}
+
 		CatalogSyncRun saved = catalogSyncRunRepository.save(CatalogSyncRun.completed(
 				jobId, projectId, raw,
 				intOrNull(snapshot, "reference_molecules"),

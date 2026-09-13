@@ -45,9 +45,16 @@ public class JobExecutor {
 		Long run(JobContext context);
 	}
 
-	@FunctionalInterface
 	public interface JobContext {
 		void aiCallStarted();
+
+		/**
+		 * 이 시도가 취소되었거나(사용자 취소) 재시도로 대체되어 더 이상 유효하지 않으면 {@code true}.
+		 * AI 호출처럼 취소해도 실제로 멈추지 않는 외부 작업이 끝난 뒤, 도메인 코드가 그 결과를
+		 * DB/스토리지에 커밋하기 <em>직전</em>에 반드시 확인해야 한다 — 취소된 작업의 결과가
+		 * 후보·보고서 등으로 조용히 등록되는 것을 막는다.
+		 */
+		boolean isCancelled();
 	}
 
 	@Async("jobTaskExecutor")
@@ -59,8 +66,20 @@ public class JobExecutor {
 		}
 		log.info("[JOB] id={} type={} attempt={} RUNNING", jobId, jobType, attempt);
 
+		JobContext context = new JobContext() {
+			@Override
+			public void aiCallStarted() {
+				jobService.markAiCallStarted(jobId, attempt);
+			}
+
+			@Override
+			public boolean isCancelled() {
+				return !jobService.isRunningAttempt(jobId, attempt);
+			}
+		};
+
 		try {
-			Long resultRefId = work.run(() -> jobService.markAiCallStarted(jobId, attempt));
+			Long resultRefId = work.run(context);
 			jobService.markSucceeded(jobId, attempt, resultRefId);
 			log.info("[JOB] id={} type={} attempt={} SUCCEEDED resultRefId={}", jobId, jobType, attempt, resultRefId);
 		} catch (BusinessException e) {

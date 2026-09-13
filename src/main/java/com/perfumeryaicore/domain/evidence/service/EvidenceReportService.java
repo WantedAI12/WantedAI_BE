@@ -86,10 +86,10 @@ public class EvidenceReportService {
 
 	/** 최초 실행과 재시도({@link EvidenceReportRetryHandler})가 공유하는 실행 경로. */
 	public void dispatch(Long jobId, Long candidateId, Long memberId) {
-		jobExecutor.execute(jobId, JobType.EVIDENCE_REPORT, context -> generate(jobId, candidateId, memberId));
+		jobExecutor.execute(jobId, JobType.EVIDENCE_REPORT, context -> generate(jobId, candidateId, memberId, context));
 	}
 
-	private Long generate(Long jobId, Long candidateId, Long memberId) {
+	private Long generate(Long jobId, Long candidateId, Long memberId, JobExecutor.JobContext context) {
 		EvidenceReportBundle bundle = new EvidenceReportBundle(
 				candidateId,
 				candidateService.get(candidateId, memberId),
@@ -103,6 +103,12 @@ public class EvidenceReportService {
 		String reportJson = jsonMapper.writeValueAsString(bundle);
 
 		byte[] pdfBytes = pdfRenderer.render(bundle);
+
+		if (context.isCancelled()) {
+			log.info("[EVIDENCE] job={} candidate={} cancelled before persisting report", jobId, candidateId);
+			throw new BusinessException(ErrorCode.JOB_CANCELLED);
+		}
+
 		String objectKey = "evidence-reports/%d/%d.pdf".formatted(candidateId, jobId);
 		s3FileStorage.upload(objectKey, pdfBytes, "application/pdf");
 

@@ -99,7 +99,7 @@ public class JobService {
 		});
 	}
 
-	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
+	/** {@code attempt}가 해당 작업의 현재 시도가 아니거나(지연 응답) 이미 RUNNING이 아니면(취소됨 등) 무시한다. */
 	@Transactional
 	public void markSucceeded(Long jobId, int attempt, Long resultRefId) {
 		Job job = jobRepository.findById(jobId)
@@ -109,10 +109,14 @@ public class JobService {
 					jobId, attempt, job.getAttempt());
 			return;
 		}
+		if (job.getStatus() != JobStatus.RUNNING) {
+			log.info("[JOB] id={} success ignored: status is {} (likely cancelled)", jobId, job.getStatus());
+			return;
+		}
 		job.markSucceeded(attempt, resultRefId);
 	}
 
-	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
+	/** {@code attempt}가 해당 작업의 현재 시도가 아니거나(지연 응답) 이미 RUNNING이 아니면(취소됨 등) 무시한다. */
 	@Transactional
 	public void markFailed(Long jobId, int attempt, String reason, boolean retryable) {
 		Job job = jobRepository.findById(jobId)
@@ -122,7 +126,22 @@ public class JobService {
 					jobId, attempt, job.getAttempt());
 			return;
 		}
+		if (job.getStatus() != JobStatus.RUNNING) {
+			log.info("[JOB] id={} failure ignored: status is {} (likely cancelled)", jobId, job.getStatus());
+			return;
+		}
 		job.markFailed(attempt, reason, retryable);
+	}
+
+	/**
+	 * 이 attempt가 아직 결과를 커밋해도 되는 유효한 실행인지(취소되지 않았고, 재시도로 대체되지도
+	 * 않았는지). 도메인의 {@link JobExecutor.JobWork}는 AI 호출 등 외부 작업이 끝난 뒤, DB/스토리지에
+	 * 결과를 쓰기 직전에 이 값을 확인해야 한다({@link JobExecutor.JobContext#isCancelled()} 경유).
+	 */
+	public boolean isRunningAttempt(Long jobId, int attempt) {
+		return jobRepository.findById(jobId)
+				.map(job -> job.isRunningAttempt(attempt))
+				.orElse(false);
 	}
 
 	@Transactional

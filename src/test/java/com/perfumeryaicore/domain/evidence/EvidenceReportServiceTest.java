@@ -1,9 +1,11 @@
 package com.perfumeryaicore.domain.evidence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +25,8 @@ import com.perfumeryaicore.domain.job.service.JobExecutor.JobWork;
 import com.perfumeryaicore.domain.job.service.JobService;
 import com.perfumeryaicore.domain.prediction.service.PredictionService;
 import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
+import com.perfumeryaicore.global.exception.BusinessException;
+import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.storage.S3FileStorage;
 import java.time.Duration;
 import java.util.List;
@@ -52,6 +56,19 @@ class EvidenceReportServiceTest {
 		Job job = Job.pending(10L, JobType.EVIDENCE_REPORT, 1L, "900");
 		ReflectionTestUtils.setField(job, "id", id);
 		return job;
+	}
+
+	private static JobExecutor.JobContext context(boolean cancelled) {
+		return new JobExecutor.JobContext() {
+			@Override
+			public void aiCallStarted() {
+			}
+
+			@Override
+			public boolean isCancelled() {
+				return cancelled;
+			}
+		};
 	}
 
 	@Test
@@ -88,7 +105,7 @@ class EvidenceReportServiceTest {
 		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
 		verify(jobExecutor).execute(eq(88L), eq(JobType.EVIDENCE_REPORT), captor.capture());
 
-		Long reportId = captor.getValue().run(() -> { });
+		Long reportId = captor.getValue().run(context(false));
 
 		assertThat(reportId).isEqualTo(500L);
 		verify(s3FileStorage).upload(eq("evidence-reports/900/88.pdf"), any(), eq("application/pdf"));
@@ -96,6 +113,29 @@ class EvidenceReportServiceTest {
 		ArgumentCaptor<EvidenceReport> reportCaptor = ArgumentCaptor.forClass(EvidenceReport.class);
 		verify(evidenceReportRepository).save(reportCaptor.capture());
 		assertThat(reportCaptor.getValue().getPdfObjectKey()).isEqualTo("evidence-reports/900/88.pdf");
+	}
+
+	/** BE-041: 취소 후 늦게 완성된 보고서는 S3/DB에 저장하지 않는다. */
+	@Test
+	void cancelled_before_persisting_is_rejected_without_saving_a_report() {
+		when(candidateService.getProjectId(900L, 1L)).thenReturn(10L);
+		when(jobService.enqueue(10L, JobType.EVIDENCE_REPORT, 1L, "900")).thenReturn(job(88L));
+		when(jobService.get(88L, 1L)).thenReturn(new JobResponse(88L, JobType.EVIDENCE_REPORT,
+				JobStatus.PENDING, false, null, null, null, null));
+		when(evidenceTimelineService.timeline(900L, 1L)).thenReturn(List.of());
+		when(sensoryTestService.list(900L, 1L)).thenReturn(List.of());
+		when(pdfRenderer.render(any())).thenReturn(new byte[] {'%', 'P', 'D', 'F'});
+
+		service.request(900L, 1L);
+
+		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(88L), eq(JobType.EVIDENCE_REPORT), captor.capture());
+
+		assertThatThrownBy(() -> captor.getValue().run(context(true)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.JOB_CANCELLED);
+		verify(s3FileStorage, never()).upload(any(), any(), any());
+		verify(evidenceReportRepository, never()).save(any());
 	}
 
 	@Test
