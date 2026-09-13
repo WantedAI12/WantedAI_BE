@@ -124,24 +124,28 @@ public class Job extends BaseTimeEntity {
 		this.aiCallStartedAt = LocalDateTime.now();
 	}
 
-	/** {@code attempt}가 현재 시도와 다르면(이전 시도의 지연 응답이면) 조용히 무시한다. */
+	/**
+	 * {@code attempt}가 현재 시도와 다르거나(이전 시도의 지연 응답) 이미 RUNNING이 아니면(취소됨 등)
+	 * 조용히 무시한다 — 늦게 도착한 응답이 취소·재시도로 이미 지나간 상태를 덮어쓰지 않게 한다.
+	 */
 	public void markSucceeded(int attempt, Long resultRefId) {
-		if (!isCurrentAttempt(attempt)) {
+		if (!isRunningAttempt(attempt)) {
 			return;
 		}
-		requireStatus(JobStatus.RUNNING);
 		this.status = JobStatus.SUCCEEDED;
 		this.resultRefId = resultRefId;
 		this.failureReason = null;
 		this.retryable = false;
 	}
 
-	/** {@code attempt}가 현재 시도와 다르면(이전 시도의 지연 응답이면) 조용히 무시한다. */
+	/**
+	 * {@code attempt}가 현재 시도와 다르거나(이전 시도의 지연 응답) 이미 RUNNING이 아니면(취소됨 등)
+	 * 조용히 무시한다 — 늦게 도착한 응답이 취소·재시도로 이미 지나간 상태를 덮어쓰지 않게 한다.
+	 */
 	public void markFailed(int attempt, String reason, boolean retryable) {
-		if (!isCurrentAttempt(attempt)) {
+		if (!isRunningAttempt(attempt)) {
 			return;
 		}
-		requireStatus(JobStatus.RUNNING);
 		this.status = JobStatus.FAILED;
 		this.failureReason = truncate(reason);
 		this.retryable = retryable;
@@ -150,6 +154,11 @@ public class Job extends BaseTimeEntity {
 	/** 주어진 attempt 번호가 이 작업의 현재(가장 최근) 시도인지. */
 	public boolean isCurrentAttempt(int attempt) {
 		return this.attempt == attempt;
+	}
+
+	/** 주어진 attempt가 현재 시도이면서 아직 RUNNING인지 — 결과를 커밋해도 되는 유일한 상태. */
+	public boolean isRunningAttempt(int attempt) {
+		return status == JobStatus.RUNNING && isCurrentAttempt(attempt);
 	}
 
 	public void cancel() {

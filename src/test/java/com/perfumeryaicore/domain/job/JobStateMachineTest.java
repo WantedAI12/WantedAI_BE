@@ -84,11 +84,28 @@ class JobStateMachineTest {
 	}
 
 	@Test
-	void succeeded_transition_requires_running_state() {
+	void succeeded_on_a_non_running_job_is_silently_ignored() {
 		Job job = newJob();
-		assertThatThrownBy(() -> job.markSucceeded(job.getAttempt(), 1L))
-				.isInstanceOf(BusinessException.class)
-				.extracting("errorCode").isEqualTo(ErrorCode.JOB_ILLEGAL_STATE);
+		job.markSucceeded(job.getAttempt(), 1L);
+
+		assertThat(job.getStatus()).isEqualTo(JobStatus.PENDING);
+		assertThat(job.getResultRefId()).isNull();
+	}
+
+	/** BE-041: 취소된 작업에 늦게 도착한 성공/실패가 덮어쓰기·예외 루프 없이 조용히 무시돼야 한다. */
+	@Test
+	void a_cancelled_job_ignores_late_success_and_failure_without_throwing() {
+		Job job = newJob();
+		int attempt = job.markRunning();
+		job.cancel();
+
+		job.markSucceeded(attempt, 999L);
+		assertThat(job.getStatus()).isEqualTo(JobStatus.CANCELLED);
+		assertThat(job.getResultRefId()).isNull();
+
+		job.markFailed(attempt, "late failure", true);
+		assertThat(job.getStatus()).isEqualTo(JobStatus.CANCELLED);
+		assertThat(job.getFailureReason()).isNull();
 	}
 
 	@Test
