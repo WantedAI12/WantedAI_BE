@@ -120,9 +120,11 @@ class ProjectServiceTest {
 	@Test
 	void change_role_blocks_demoting_the_last_org_admin() {
 		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
 		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
-				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN)));
-		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(1L);
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target));
 
 		assertThatThrownBy(() -> service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
 				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER)))
@@ -133,9 +135,11 @@ class ProjectServiceTest {
 	@Test
 	void remove_member_blocks_removing_the_last_org_admin() {
 		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
 		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
-				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN)));
-		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(1L);
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target));
 
 		assertThatThrownBy(() -> service.removeMember(PROJECT_ID, ACTOR_ID, TARGET_ID))
 				.isInstanceOf(BusinessException.class)
@@ -205,6 +209,25 @@ class ProjectServiceTest {
 				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	/** BE-009: 관리자가 둘 이상 남아있으면 강등이 통과하고, 이때 잠금 조회가 실제로 쓰인다. */
+	@Test
+	void change_role_away_from_org_admin_succeeds_when_another_admin_remains() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
+		ProjectMember other = ProjectMember.create(PROJECT_ID, 3L, ProjectRole.ORG_ADMIN);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target, other));
+		when(memberRepository.findById(TARGET_ID)).thenReturn(Optional.of(member(TARGET_ID, "t@example.com")));
+
+		service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
+				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER));
+
+		assertThat(target.getRole()).isEqualTo(ProjectRole.PERFUMER);
+		verify(projectMemberRepository).findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN);
 	}
 
 	/** BE-008: PROJECT_MANAGER는 ORG_ADMIN을 제거할 수도 없다 — 마지막 관리자가 아니어도. */
