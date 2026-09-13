@@ -6,10 +6,13 @@ import com.perfumeryaicore.domain.project.dto.request.AddProjectMemberRequest;
 import com.perfumeryaicore.domain.project.dto.request.ChangeProjectMemberRoleRequest;
 import com.perfumeryaicore.domain.project.dto.request.CreateProjectRequest;
 import com.perfumeryaicore.domain.project.dto.request.UpdateProjectRequest;
+import com.perfumeryaicore.domain.project.dto.response.ProjectMemberAuditLogResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectMemberResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.entity.Project;
 import com.perfumeryaicore.domain.project.entity.ProjectMember;
+import com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog;
+import com.perfumeryaicore.domain.project.repository.ProjectMemberAuditLogRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectMemberRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectRepository;
 import com.perfumeryaicore.global.common.ProjectRole;
@@ -40,6 +43,7 @@ public class ProjectService {
 
 	private final ProjectRepository projectRepository;
 	private final ProjectMemberRepository projectMemberRepository;
+	private final ProjectMemberAuditLogRepository auditLogRepository;
 	private final MemberRepository memberRepository;
 	private final ProjectAccessGuard accessGuard;
 
@@ -122,6 +126,7 @@ public class ProjectService {
 		}
 		ProjectMember saved = projectMemberRepository.save(
 				ProjectMember.create(projectId, target.getId(), dto.role()));
+		auditLogRepository.save(ProjectMemberAuditLog.added(projectId, target.getId(), actorId, dto.role()));
 		log.info("[PROJECT] id={} member={} added as {} by={}",
 				projectId, target.getId(), dto.role(), actorId);
 		return ProjectMemberResponse.of(saved, target);
@@ -142,7 +147,10 @@ public class ProjectService {
 		if (membership.isAdmin() && dto.role() != ProjectRole.ORG_ADMIN && isLastAdminLocked(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
+		ProjectRole previousRole = membership.getRole();
 		membership.changeRole(dto.role());
+		auditLogRepository.save(
+				ProjectMemberAuditLog.roleChanged(projectId, targetMemberId, actorId, previousRole, dto.role()));
 
 		Member target = memberRepository.findById(targetMemberId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
@@ -164,8 +172,18 @@ public class ProjectService {
 		if (membership.isAdmin() && isLastAdminLocked(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
+		auditLogRepository.save(
+				ProjectMemberAuditLog.removed(projectId, targetMemberId, actorId, membership.getRole()));
 		projectMemberRepository.delete(membership);
 		log.info("[PROJECT] id={} member={} removed by={}", projectId, targetMemberId, actorId);
+	}
+
+	/** 멤버 추가·역할 변경·제거의 불변 감사 이력을 최신순으로 조회한다(ORG_ADMIN/PROJECT_MANAGER 전용, BE-010). */
+	public List<ProjectMemberAuditLogResponse> memberAuditLog(Long projectId, Long memberId) {
+		accessGuard.requireRole(projectId, memberId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		return auditLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+				.map(ProjectMemberAuditLogResponse::from)
+				.toList();
 	}
 
 	/**
