@@ -201,7 +201,7 @@ public class EvidenceReportPdfRenderer {
 	 */
 	private static volatile Path fontFile;
 
-	private PDFont loadFont(PDDocument document) throws IOException {
+	PDFont loadFont(PDDocument document) throws IOException {
 		// embedSubset=true, closeData=true → PDFBox가 save 시점에 폰트를 다시 읽고 끝나면 닫는다.
 		return PDType0Font.load(document, new RandomAccessReadBufferedFile(resolveFontFile()), true, true);
 	}
@@ -228,8 +228,8 @@ public class EvidenceReportPdfRenderer {
 		}
 	}
 
-	/** 페이지 넘김·줄바꿈을 관리하는 작은 커서. */
-	private static final class Cursor {
+	/** 페이지 넘김·줄바꿈을 관리하는 작은 커서. (테스트에서 wrap()을 직접 검증하기 위해 package-private) */
+	static final class Cursor {
 		private final PDDocument document;
 		private final PDFont font;
 		private PDPageContentStream stream;
@@ -278,7 +278,7 @@ public class EvidenceReportPdfRenderer {
 		}
 
 		/** 페이지 폭을 넘는 줄을 단어 단위(공백 없으면 글자 단위)로 잘라 여러 줄로 만든다. */
-		private List<String> wrap(String rawText, float fontSize) throws IOException {
+		List<String> wrap(String rawText, float fontSize) throws IOException {
 			String sanitized = rawText == null ? "" : rawText.replace("\r", " ").replace("\n", " ");
 			List<String> lines = new ArrayList<>();
 			StringBuilder current = new StringBuilder();
@@ -288,8 +288,9 @@ public class EvidenceReportPdfRenderer {
 					current = new StringBuilder(candidate);
 					// 단어 하나 자체가 폭을 넘으면 글자 단위로 강제 절단
 					while (width(current.toString(), fontSize) > USABLE_WIDTH && current.length() > 1) {
-						lines.add(current.substring(0, current.length() - 1));
-						current = new StringBuilder(current.substring(current.length() - 1));
+						int fitLength = longestFittingPrefixLength(current.toString(), fontSize);
+						lines.add(current.substring(0, fitLength));
+						current = new StringBuilder(current.substring(fitLength));
 					}
 				} else {
 					lines.add(current.toString());
@@ -300,6 +301,19 @@ public class EvidenceReportPdfRenderer {
 				lines.add(current.toString());
 			}
 			return lines;
+		}
+
+		/**
+		 * {@code text}에서 폭 {@code USABLE_WIDTH} 안에 실제로 들어가는 가장 긴 접두사의 길이.
+		 * 이전 구현은 마지막 한 글자만 떼어내고 나머지 긴 앞부분을 폭 검사 없이 그대로 한 줄로
+		 * 밀어넣어, 여전히 폭을 넘는 줄이 그대로 생성되는 문제가 있었다(BE-060).
+		 */
+		private int longestFittingPrefixLength(String text, float fontSize) throws IOException {
+			int fitLength = text.length() - 1;
+			while (fitLength > 1 && width(text.substring(0, fitLength), fontSize) > USABLE_WIDTH) {
+				fitLength--;
+			}
+			return fitLength;
 		}
 
 		private float width(String text, float fontSize) throws IOException {

@@ -108,8 +108,9 @@ class SupplyChangeServiceTest {
 				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_NOT_FOUND);
 	}
 
+	/** BE-079: KEEP_FORMULA/DISCARD_CANDIDATE는 확정된 결정이므로 영향 행을 REVIEWED로 닫는다. */
 	@Test
-	void record_decision_marks_the_matching_affected_row_reviewed() {
+	void record_decision_marks_the_matching_affected_row_reviewed_for_a_final_decision() {
 		Candidate candidate = withId(Candidate.create(1L, 10L, 1L, null), 100L);
 		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
 		when(decisionRepository.save(any(SupplyReviewDecision.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -119,9 +120,28 @@ class SupplyChangeServiceTest {
 				.thenReturn(Optional.of(affected));
 
 		service.recordDecision(100L, 1L, new RecordSupplyReviewDecisionRequest(
-				500L, SupplyReviewDecisionType.REVISE_FORMULA, "베티버로 일부 대체"));
+				500L, SupplyReviewDecisionType.KEEP_FORMULA, "영향 미미해 그대로 유지"));
 
 		assertThat(affected.getReviewStatus().name()).isEqualTo("REVIEWED");
+	}
+
+	/**
+	 * BE-079: REVISE_FORMULA(조향식 수정 예정)는 아직 아무것도 해결되지 않았다 - 실제 재평가
+	 * 완료 전까지 영향 행을 REVIEWED로 조기 완료 처리하지 않는다.
+	 */
+	@Test
+	void record_decision_does_not_mark_reviewed_when_revision_is_only_planned() {
+		Candidate candidate = withId(Candidate.create(1L, 10L, 1L, null), 100L);
+		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
+		when(decisionRepository.save(any(SupplyReviewDecision.class))).thenAnswer(inv -> inv.getArgument(0));
+		SupplyChangeAffectedCandidate affected =
+				SupplyChangeAffectedCandidate.of(500L, 100L, 200L, 8.0);
+
+		service.recordDecision(100L, 1L, new RecordSupplyReviewDecisionRequest(
+				500L, SupplyReviewDecisionType.REVISE_FORMULA, "베티버로 일부 대체"));
+
+		assertThat(affected.getReviewStatus().name()).isEqualTo("PENDING_REVIEW");
+		verify(affectedRepository, never()).findBySupplyChangeIdAndCandidateId(any(), any());
 	}
 
 	@Test
