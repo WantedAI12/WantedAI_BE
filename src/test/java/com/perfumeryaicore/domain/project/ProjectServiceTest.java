@@ -154,4 +154,71 @@ class ProjectServiceTest {
 
 		verify(projectMemberRepository).delete(target);
 	}
+
+	/** BE-008: PROJECT_MANAGER는 ORG_ADMIN 역할을 부여할 수 없다. */
+	@Test
+	void add_member_as_org_admin_is_forbidden_for_a_project_manager() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+
+		assertThatThrownBy(() -> service.addMember(PROJECT_ID, ACTOR_ID,
+				new AddProjectMemberRequest("new@example.com", ProjectRole.ORG_ADMIN)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(memberRepository, never()).findByEmail(any());
+	}
+
+	@Test
+	void add_member_as_org_admin_succeeds_for_an_org_admin() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		when(memberRepository.findByEmail("new@example.com"))
+				.thenReturn(Optional.of(member(TARGET_ID, "new@example.com")));
+		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		var response = service.addMember(PROJECT_ID, ACTOR_ID,
+				new AddProjectMemberRequest("new@example.com", ProjectRole.ORG_ADMIN));
+
+		assertThat(response.role()).isEqualTo(ProjectRole.ORG_ADMIN);
+	}
+
+	/** BE-008: PROJECT_MANAGER는 다른 멤버를 ORG_ADMIN으로 승격시킬 수 없다. */
+	@Test
+	void change_role_to_org_admin_is_forbidden_for_a_project_manager() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.PERFUMER)));
+
+		assertThatThrownBy(() -> service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
+				new ChangeProjectMemberRoleRequest(ProjectRole.ORG_ADMIN)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	/** BE-008: PROJECT_MANAGER는 기존 ORG_ADMIN을 강등(회수)시킬 수도 없다 — 마지막 관리자가 아니어도. */
+	@Test
+	void change_role_away_from_org_admin_is_forbidden_for_a_project_manager() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN)));
+		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(2L);
+
+		assertThatThrownBy(() -> service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
+				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	/** BE-008: PROJECT_MANAGER는 ORG_ADMIN을 제거할 수도 없다 — 마지막 관리자가 아니어도. */
+	@Test
+	void remove_member_of_an_org_admin_is_forbidden_for_a_project_manager() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(2L);
+
+		assertThatThrownBy(() -> service.removeMember(PROJECT_ID, ACTOR_ID, TARGET_ID))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(projectMemberRepository, never()).delete(any());
+	}
 }

@@ -110,7 +110,11 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectMemberResponse addMember(Long projectId, Long actorId, AddProjectMemberRequest dto) {
-		accessGuard.requireRole(projectId, actorId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		ProjectRole actorRole = accessGuard.requireRole(projectId, actorId,
+				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		if (dto.role() == ProjectRole.ORG_ADMIN) {
+			requireOrgAdminActor(actorRole, "ORG_ADMIN 역할 부여");
+		}
 		Member target = memberRepository.findByEmail(dto.email())
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 		if (projectMemberRepository.existsByProjectIdAndMemberId(projectId, target.getId())) {
@@ -126,10 +130,15 @@ public class ProjectService {
 	@Transactional
 	public ProjectMemberResponse changeMemberRole(Long projectId, Long actorId, Long targetMemberId,
 			ChangeProjectMemberRoleRequest dto) {
-		accessGuard.requireRole(projectId, actorId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		ProjectRole actorRole = accessGuard.requireRole(projectId, actorId,
+				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		ProjectMember membership = projectMemberRepository.findByProjectIdAndMemberId(projectId, targetMemberId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 
+		// 대상이 이미 ORG_ADMIN이면(회수) 또는 새 역할이 ORG_ADMIN이면(부여) 행위자도 ORG_ADMIN이어야 한다.
+		if (membership.isAdmin() || dto.role() == ProjectRole.ORG_ADMIN) {
+			requireOrgAdminActor(actorRole, "ORG_ADMIN 역할 부여·회수");
+		}
 		if (membership.isAdmin() && dto.role() != ProjectRole.ORG_ADMIN && isLastAdmin(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
@@ -144,15 +153,29 @@ public class ProjectService {
 
 	@Transactional
 	public void removeMember(Long projectId, Long actorId, Long targetMemberId) {
-		accessGuard.requireRole(projectId, actorId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		ProjectRole actorRole = accessGuard.requireRole(projectId, actorId,
+				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		ProjectMember membership = projectMemberRepository.findByProjectIdAndMemberId(projectId, targetMemberId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 
+		if (membership.isAdmin()) {
+			requireOrgAdminActor(actorRole, "ORG_ADMIN 제거");
+		}
 		if (membership.isAdmin() && isLastAdmin(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
 		projectMemberRepository.delete(membership);
 		log.info("[PROJECT] id={} member={} removed by={}", projectId, targetMemberId, actorId);
+	}
+
+	/**
+	 * ORG_ADMIN 역할의 생성·부여·회수는 조직 관리 권한(ORG_ADMIN)으로 한정한다(BE-008).
+	 * PROJECT_MANAGER는 다른 역할은 자유롭게 배정할 수 있지만, ORG_ADMIN을 주거나 뺏을 수는 없다.
+	 */
+	private void requireOrgAdminActor(ProjectRole actorRole, String action) {
+		if (actorRole != ProjectRole.ORG_ADMIN) {
+			throw new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN, action + "은(는) 조직 관리자만 할 수 있습니다.");
+		}
 	}
 
 	private boolean isLastAdmin(Long projectId) {
