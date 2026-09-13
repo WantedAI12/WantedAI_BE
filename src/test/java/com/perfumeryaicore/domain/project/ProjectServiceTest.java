@@ -17,6 +17,8 @@ import com.perfumeryaicore.domain.project.dto.request.UpdateProjectRequest;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.entity.Project;
 import com.perfumeryaicore.domain.project.entity.ProjectMember;
+import com.perfumeryaicore.domain.project.entity.ProjectMemberAction;
+import com.perfumeryaicore.domain.project.repository.ProjectMemberAuditLogRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectMemberRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectRepository;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
@@ -36,9 +38,10 @@ class ProjectServiceTest {
 
 	private final ProjectRepository projectRepository = mock(ProjectRepository.class);
 	private final ProjectMemberRepository projectMemberRepository = mock(ProjectMemberRepository.class);
+	private final ProjectMemberAuditLogRepository auditLogRepository = mock(ProjectMemberAuditLogRepository.class);
 	private final MemberRepository memberRepository = mock(MemberRepository.class);
 	private final ProjectService service = new ProjectService(
-			projectRepository, projectMemberRepository, memberRepository,
+			projectRepository, projectMemberRepository, auditLogRepository, memberRepository,
 			new ProjectAccessGuard(projectMemberRepository));
 
 	private void actorHasRole(ProjectRole role) {
@@ -120,9 +123,11 @@ class ProjectServiceTest {
 	@Test
 	void change_role_blocks_demoting_the_last_org_admin() {
 		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
 		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
-				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN)));
-		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(1L);
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target));
 
 		assertThatThrownBy(() -> service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
 				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER)))
@@ -133,9 +138,11 @@ class ProjectServiceTest {
 	@Test
 	void remove_member_blocks_removing_the_last_org_admin() {
 		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
 		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
-				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN)));
-		when(projectMemberRepository.countByProjectIdAndRole(PROJECT_ID, ProjectRole.ORG_ADMIN)).thenReturn(1L);
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target));
 
 		assertThatThrownBy(() -> service.removeMember(PROJECT_ID, ACTOR_ID, TARGET_ID))
 				.isInstanceOf(BusinessException.class)
@@ -207,6 +214,25 @@ class ProjectServiceTest {
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
 
+	/** BE-009: 관리자가 둘 이상 남아있으면 강등이 통과하고, 이때 잠금 조회가 실제로 쓰인다. */
+	@Test
+	void change_role_away_from_org_admin_succeeds_when_another_admin_remains() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.ORG_ADMIN);
+		ProjectMember other = ProjectMember.create(PROJECT_ID, 3L, ProjectRole.ORG_ADMIN);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(target));
+		when(projectMemberRepository.findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN))
+				.thenReturn(java.util.List.of(target, other));
+		when(memberRepository.findById(TARGET_ID)).thenReturn(Optional.of(member(TARGET_ID, "t@example.com")));
+
+		service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
+				new ChangeProjectMemberRoleRequest(ProjectRole.PERFUMER));
+
+		assertThat(target.getRole()).isEqualTo(ProjectRole.PERFUMER);
+		verify(projectMemberRepository).findByProjectIdAndRoleForUpdate(PROJECT_ID, ProjectRole.ORG_ADMIN);
+	}
+
 	/** BE-008: PROJECT_MANAGER는 ORG_ADMIN을 제거할 수도 없다 — 마지막 관리자가 아니어도. */
 	@Test
 	void remove_member_of_an_org_admin_is_forbidden_for_a_project_manager() {
@@ -220,5 +246,80 @@ class ProjectServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 		verify(projectMemberRepository, never()).delete(any());
+	}
+
+	/** BE-010: 멤버 추가는 ADDED 감사 로그를 남긴다. */
+	@Test
+	void add_member_records_an_added_audit_log() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		when(memberRepository.findByEmail("new@example.com"))
+				.thenReturn(Optional.of(member(TARGET_ID, "new@example.com")));
+		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		service.addMember(PROJECT_ID, ACTOR_ID, new AddProjectMemberRequest("new@example.com", ProjectRole.PERFUMER));
+
+		var captor = ArgumentCaptor.forClass(com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog.class);
+		verify(auditLogRepository).save(captor.capture());
+		assertThat(captor.getValue().getAction()).isEqualTo(ProjectMemberAction.ADDED);
+		assertThat(captor.getValue().getTargetMemberId()).isEqualTo(TARGET_ID);
+		assertThat(captor.getValue().getActorId()).isEqualTo(ACTOR_ID);
+		assertThat(captor.getValue().getNewRole()).isEqualTo(ProjectRole.PERFUMER);
+	}
+
+	/** BE-010: 역할 변경은 이전·이후 역할을 함께 담은 ROLE_CHANGED 감사 로그를 남긴다. */
+	@Test
+	void change_role_records_a_role_changed_audit_log() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.PERFUMER)));
+		when(memberRepository.findById(TARGET_ID)).thenReturn(Optional.of(member(TARGET_ID, "t@example.com")));
+
+		service.changeMemberRole(PROJECT_ID, ACTOR_ID, TARGET_ID,
+				new ChangeProjectMemberRoleRequest(ProjectRole.SAFETY_REVIEWER));
+
+		var captor = ArgumentCaptor.forClass(com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog.class);
+		verify(auditLogRepository).save(captor.capture());
+		assertThat(captor.getValue().getAction()).isEqualTo(ProjectMemberAction.ROLE_CHANGED);
+		assertThat(captor.getValue().getPreviousRole()).isEqualTo(ProjectRole.PERFUMER);
+		assertThat(captor.getValue().getNewRole()).isEqualTo(ProjectRole.SAFETY_REVIEWER);
+	}
+
+	/** BE-010: 멤버 제거는 제거 당시 역할을 담은 REMOVED 감사 로그를 남긴다. */
+	@Test
+	void remove_member_records_a_removed_audit_log() {
+		actorHasRole(ProjectRole.PROJECT_MANAGER);
+		ProjectMember target = ProjectMember.create(PROJECT_ID, TARGET_ID, ProjectRole.PERFUMER);
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, TARGET_ID))
+				.thenReturn(Optional.of(target));
+
+		service.removeMember(PROJECT_ID, ACTOR_ID, TARGET_ID);
+
+		var captor = ArgumentCaptor.forClass(com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog.class);
+		verify(auditLogRepository).save(captor.capture());
+		assertThat(captor.getValue().getAction()).isEqualTo(ProjectMemberAction.REMOVED);
+		assertThat(captor.getValue().getPreviousRole()).isEqualTo(ProjectRole.PERFUMER);
+	}
+
+	/** BE-010: 감사 이력 조회는 ORG_ADMIN/PROJECT_MANAGER가 아니면 거부된다. */
+	@Test
+	void member_audit_log_is_forbidden_for_a_plain_member() {
+		actorHasRole(ProjectRole.PERFUMER);
+
+		assertThatThrownBy(() -> service.memberAuditLog(PROJECT_ID, ACTOR_ID))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	@Test
+	void member_audit_log_returns_the_repository_history_for_an_org_admin() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		var entry = com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog.added(
+				PROJECT_ID, TARGET_ID, ACTOR_ID, ProjectRole.PERFUMER);
+		when(auditLogRepository.findByProjectIdOrderByCreatedAtDesc(PROJECT_ID)).thenReturn(java.util.List.of(entry));
+
+		var result = service.memberAuditLog(PROJECT_ID, ACTOR_ID);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).action()).isEqualTo(ProjectMemberAction.ADDED);
 	}
 }

@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.project.dto.request.CreateProjectRequest;
 import com.perfumeryaicore.domain.project.dto.request.UpdateProjectRequest;
 import com.perfumeryaicore.domain.project.dto.response.ProjectImageResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectImageUploadResponse;
+import com.perfumeryaicore.domain.project.dto.response.ProjectMemberAuditLogResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectMemberResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.service.ProjectImageService;
@@ -110,6 +111,14 @@ public class ProjectController {
 			@PathVariable Long memberId) {
 		projectService.removeMember(projectId, principal.id(), memberId);
 		return ResponseEntity.noContent().build();
+	}
+
+	@Operation(summary = "멤버 추가·역할 변경·제거 감사 이력 조회 (ORG_ADMIN / PROJECT_MANAGER)")
+	@GetMapping("/projects/{projectId}/members/audit-log")
+	public ApiResponse<List<ProjectMemberAuditLogResponse>> memberAuditLog(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long projectId) {
+		return ApiResponse.success(projectService.memberAuditLog(projectId, principal.id()));
 	}
 
 	@Operation(summary = "프로젝트 이미지 임시 업로드 — 아직 어떤 프로젝트에도 연결되지 않은 자산 ID를 반환")

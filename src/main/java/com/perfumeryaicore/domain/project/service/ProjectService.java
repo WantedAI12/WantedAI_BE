@@ -6,10 +6,13 @@ import com.perfumeryaicore.domain.project.dto.request.AddProjectMemberRequest;
 import com.perfumeryaicore.domain.project.dto.request.ChangeProjectMemberRoleRequest;
 import com.perfumeryaicore.domain.project.dto.request.CreateProjectRequest;
 import com.perfumeryaicore.domain.project.dto.request.UpdateProjectRequest;
+import com.perfumeryaicore.domain.project.dto.response.ProjectMemberAuditLogResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectMemberResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.entity.Project;
 import com.perfumeryaicore.domain.project.entity.ProjectMember;
+import com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog;
+import com.perfumeryaicore.domain.project.repository.ProjectMemberAuditLogRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectMemberRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectRepository;
 import com.perfumeryaicore.global.common.ProjectRole;
@@ -40,6 +43,7 @@ public class ProjectService {
 
 	private final ProjectRepository projectRepository;
 	private final ProjectMemberRepository projectMemberRepository;
+	private final ProjectMemberAuditLogRepository auditLogRepository;
 	private final MemberRepository memberRepository;
 	private final ProjectAccessGuard accessGuard;
 
@@ -122,6 +126,7 @@ public class ProjectService {
 		}
 		ProjectMember saved = projectMemberRepository.save(
 				ProjectMember.create(projectId, target.getId(), dto.role()));
+		auditLogRepository.save(ProjectMemberAuditLog.added(projectId, target.getId(), actorId, dto.role()));
 		log.info("[PROJECT] id={} member={} added as {} by={}",
 				projectId, target.getId(), dto.role(), actorId);
 		return ProjectMemberResponse.of(saved, target);
@@ -139,10 +144,13 @@ public class ProjectService {
 		if (membership.isAdmin() || dto.role() == ProjectRole.ORG_ADMIN) {
 			requireOrgAdminActor(actorRole, "ORG_ADMIN 역할 부여·회수");
 		}
-		if (membership.isAdmin() && dto.role() != ProjectRole.ORG_ADMIN && isLastAdmin(projectId)) {
+		if (membership.isAdmin() && dto.role() != ProjectRole.ORG_ADMIN && isLastAdminLocked(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
+		ProjectRole previousRole = membership.getRole();
 		membership.changeRole(dto.role());
+		auditLogRepository.save(
+				ProjectMemberAuditLog.roleChanged(projectId, targetMemberId, actorId, previousRole, dto.role()));
 
 		Member target = memberRepository.findById(targetMemberId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
@@ -161,11 +169,21 @@ public class ProjectService {
 		if (membership.isAdmin()) {
 			requireOrgAdminActor(actorRole, "ORG_ADMIN 제거");
 		}
-		if (membership.isAdmin() && isLastAdmin(projectId)) {
+		if (membership.isAdmin() && isLastAdminLocked(projectId)) {
 			throw new BusinessException(ErrorCode.PROJECT_LAST_ADMIN);
 		}
+		auditLogRepository.save(
+				ProjectMemberAuditLog.removed(projectId, targetMemberId, actorId, membership.getRole()));
 		projectMemberRepository.delete(membership);
 		log.info("[PROJECT] id={} member={} removed by={}", projectId, targetMemberId, actorId);
+	}
+
+	/** 멤버 추가·역할 변경·제거의 불변 감사 이력을 최신순으로 조회한다(ORG_ADMIN/PROJECT_MANAGER 전용, BE-010). */
+	public List<ProjectMemberAuditLogResponse> memberAuditLog(Long projectId, Long memberId) {
+		accessGuard.requireRole(projectId, memberId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		return auditLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+				.map(ProjectMemberAuditLogResponse::from)
+				.toList();
 	}
 
 	/**
@@ -178,8 +196,16 @@ public class ProjectService {
 		}
 	}
 
-	private boolean isLastAdmin(Long projectId) {
-		return projectMemberRepository.countByProjectIdAndRole(projectId, ProjectRole.ORG_ADMIN) <= 1;
+	/**
+	 * ORG_ADMIN 행을 잠그고(PESSIMISTIC_WRITE) 마지막 관리자인지 확인한다(BE-009).
+	 *
+	 * <p>단순 COUNT 조회는 동시에 들어온 두 개의 강등·제거 요청이 서로의 결과를 보지 못한 채
+	 * 둘 다 "아직 2명 이상"이라고 판단해 통과시킬 수 있다. 이 메서드가 호출한 시점부터 트랜잭션이
+	 * 끝날 때까지 해당 프로젝트의 ORG_ADMIN 행에 대한 잠금이 유지되므로, 같은 프로젝트를 대상으로
+	 * 동시에 들어온 요청은 이 지점에서 직렬화되어 하나가 커밋된 뒤에야 다음 요청이 최신 개수를 읽는다.
+	 */
+	private boolean isLastAdminLocked(Long projectId) {
+		return projectMemberRepository.findByProjectIdAndRoleForUpdate(projectId, ProjectRole.ORG_ADMIN).size() <= 1;
 	}
 
 	private Project findProject(Long projectId) {
