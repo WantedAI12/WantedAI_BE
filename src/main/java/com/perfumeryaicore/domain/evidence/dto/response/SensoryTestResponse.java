@@ -10,6 +10,9 @@ public record SensoryTestResponse(
 		String planDetail,
 		SensoryTestStatus status,
 		List<SensoryTestResultResponse> results,
-		LocalDateTime createdAt
+		LocalDateTime createdAt,
+		boolean published,
+		Long publishedBy,
+		LocalDateTime publishedAt
 ) {
 }

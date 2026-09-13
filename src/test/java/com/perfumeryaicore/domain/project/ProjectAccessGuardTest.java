@@ -45,4 +45,27 @@ class ProjectAccessGuardTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
+
+	@Test
+	void has_role_is_true_for_a_member_with_an_allowed_role() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.SENSORY_SCIENTIST)));
+
+		assertThat(guard.hasRole(10L, 1L, ProjectRole.SENSORY_SCIENTIST, ProjectRole.PROJECT_MANAGER)).isTrue();
+	}
+
+	@Test
+	void has_role_is_false_without_throwing_for_a_member_with_a_different_role() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.PERFUMER)));
+
+		assertThat(guard.hasRole(10L, 1L, ProjectRole.SENSORY_SCIENTIST)).isFalse();
+	}
+
+	@Test
+	void has_role_is_false_without_throwing_for_a_stranger() {
+		when(repository.findByProjectIdAndMemberId(10L, 99L)).thenReturn(Optional.empty());
+
+		assertThat(guard.hasRole(10L, 99L, ProjectRole.SENSORY_SCIENTIST)).isFalse();
+	}
 }
