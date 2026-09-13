@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -86,6 +87,15 @@ public class Job extends BaseTimeEntity {
 
 	@Column(name = "created_by", nullable = false)
 	private Long createdBy;
+
+	/**
+	 * 낙관적 잠금(BE-043). 워커 두 개가 같은 PENDING 작업을 동시에 선점하거나, 재시도·취소·완료가
+	 * 서로 경합하면 먼저 커밋한 쪽만 성공하고 나머지는
+	 * {@link org.springframework.orm.ObjectOptimisticLockingFailureException}로 실패한다.
+	 */
+	@Version
+	@Column(nullable = false)
+	private Long version;
 
 	private Job(Long projectId, JobType jobType, Long createdBy, String inputPayload) {
 		this.projectId = projectId;

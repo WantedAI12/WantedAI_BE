@@ -4,6 +4,7 @@ import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.ApiResponse.FieldErrorDetail;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -35,6 +36,15 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.getStatus())
 				.body(ApiResponse.error(ErrorCode.VALIDATION_FAILED.name(),
 						ErrorCode.VALIDATION_FAILED.getMessage(), details));
+	}
+
+	/** 낙관적 잠금 충돌(예: Job 동시 선점/재시도/취소 경합, BE-043). */
+	@ExceptionHandler(OptimisticLockingFailureException.class)
+	public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(OptimisticLockingFailureException e) {
+		log.info("Optimistic locking conflict: {}", e.getMessage());
+		ErrorCode code = ErrorCode.CONCURRENT_MODIFICATION;
+		return ResponseEntity.status(code.getStatus())
+				.body(ApiResponse.error(code.name(), code.getMessage()));
 	}
 
 	@ExceptionHandler({MethodArgumentTypeMismatchException.class, HandlerMethodValidationException.class})
