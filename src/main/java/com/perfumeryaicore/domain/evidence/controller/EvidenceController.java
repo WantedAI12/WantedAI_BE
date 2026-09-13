@@ -80,6 +80,14 @@ public class EvidenceController {
 				.body(ApiResponse.success(sensoryTestService.recordResult(testId, principal.id(), request)));
 	}
 
+	@Operation(summary = "관능 검증 결과 공개 (SENSORY_SCIENTIST/PROJECT_MANAGER)")
+	@PostMapping("/sensory-tests/{testId}/publish")
+	public ApiResponse<SensoryTestResponse> publishSensoryTest(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long testId) {
+		return ApiResponse.success(sensoryTestService.publish(testId, principal.id()));
+	}
+
 	@Operation(summary = "증거 보고서 생성 요청 (비동기)")
 	@PostMapping("/candidates/{candidateId}/evidence-reports")
 	public ResponseEntity<ApiResponse<JobResponse>> requestEvidenceReport(

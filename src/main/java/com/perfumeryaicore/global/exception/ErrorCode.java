@@ -59,6 +59,8 @@ public enum ErrorCode {
 
 	// 증거·관능검증(Evidence)
 	SENSORY_TEST_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 계획을 찾을 수 없습니다."),
+	SENSORY_TEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "공개되지 않은 관능 결과에 접근할 권한이 없습니다."),
+	SENSORY_TEST_NOT_COMPLETED(HttpStatus.CONFLICT, "결과가 등록되지 않은 계획은 공개할 수 없습니다."),
 	EVIDENCE_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "증거 보고서를 찾을 수 없습니다."),
 
 	// 원료 카탈로그(Ingredient)

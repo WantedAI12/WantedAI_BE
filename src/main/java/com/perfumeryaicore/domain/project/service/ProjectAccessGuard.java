@@ -46,4 +46,23 @@ public class ProjectAccessGuard {
 	public boolean isMember(Long projectId, Long memberId) {
 		return projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId);
 	}
+
+	/**
+	 * 멤버이면서 {@code allowed} 중 하나의 역할인지 예외 없이 확인한다. {@link #requireRole}과 달리
+	 * "역할에 따라 조회 범위를 조용히 좁힐지" 같은, 거부가 아니라 분기가 필요한 곳에서 쓴다.
+	 * 멤버가 아니면 false.
+	 */
+	public boolean hasRole(Long projectId, Long memberId, ProjectRole... allowed) {
+		return projectMemberRepository.findByProjectIdAndMemberId(projectId, memberId)
+				.map(ProjectMember::getRole)
+				.map(role -> {
+					for (ProjectRole candidate : allowed) {
+						if (role == candidate) {
+							return true;
+						}
+					}
+					return false;
+				})
+				.orElse(false);
+	}
 }
