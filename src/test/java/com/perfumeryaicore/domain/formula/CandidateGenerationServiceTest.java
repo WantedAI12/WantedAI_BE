@@ -21,6 +21,7 @@ import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.service.JobExecutor;
 import com.perfumeryaicore.domain.job.service.JobExecutor.JobWork;
 import com.perfumeryaicore.domain.job.service.JobService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
@@ -29,6 +30,7 @@ import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse.Deployment;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse.RecipeLine;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -45,13 +47,16 @@ class CandidateGenerationServiceTest {
 	private final PerfumeryAiClient perfumeryAiClient = mock(PerfumeryAiClient.class);
 	private final FormulaRequestMapper formulaRequestMapper = mock(FormulaRequestMapper.class);
 	private final CandidatePersistenceService candidatePersistenceService = mock(CandidatePersistenceService.class);
+	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
 
 	private CandidateGenerationService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new CandidateGenerationService(fragranceRequestService, jobService, jobExecutor,
-				perfumeryAiClient, formulaRequestMapper, candidatePersistenceService);
+				perfumeryAiClient, formulaRequestMapper, candidatePersistenceService, accessGuard);
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				.thenReturn(ProjectRole.PERFUMER);
 	}
 
 	private FragranceRequest confirmedRequest() {
@@ -153,5 +158,19 @@ class CandidateGenerationServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
+	}
+
+	/** BE-004: SUPPLIER/AUDITOR는 후보 생성을 트리거할 수 없다. */
+	@Test
+	void a_non_trigger_role_cannot_enqueue_generation() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
+
+		assertThatThrownBy(() -> service.enqueue(5L, 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(jobService, never()).enqueue(anyLong(), any(), anyLong(), any());
+		verify(jobExecutor, never()).execute(anyLong(), any(), any());
 	}
 }

@@ -13,11 +13,14 @@ import com.perfumeryaicore.domain.experiment.entity.ExperimentStatusLog;
 import com.perfumeryaicore.domain.experiment.repository.ExperimentStatusLogRepository;
 import com.perfumeryaicore.domain.experiment.service.ExperimentStatusService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
 import com.perfumeryaicore.global.common.CandidateStatus;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -26,8 +29,16 @@ class ExperimentStatusServiceTest {
 	private final CandidateService candidateService = mock(CandidateService.class);
 	private final ApprovalGateService approvalGateService = mock(ApprovalGateService.class);
 	private final ExperimentStatusLogRepository logRepository = mock(ExperimentStatusLogRepository.class);
+	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
 	private final ExperimentStatusService service =
-			new ExperimentStatusService(candidateService, approvalGateService, logRepository);
+			new ExperimentStatusService(candidateService, approvalGateService, logRepository, accessGuard);
+
+	@BeforeEach
+	void actorHasATransitionRole() {
+		when(candidateService.getProjectId(500L, 1L)).thenReturn(10L);
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
+				.thenReturn(ProjectRole.PERFUMER);
+	}
 
 	private ExperimentStatusLog logEntry(CandidateStatus status) {
 		ExperimentStatusLog entry = ExperimentStatusLog.record(500L, status, 1L);
@@ -68,6 +79,19 @@ class ExperimentStatusServiceTest {
 
 		verify(approvalGateService, never()).isApproved(500L);
 		verify(candidateService).transitionStatus(500L, 1L, CandidateStatus.REJECTED);
+	}
+
+	/** BE-004: 실험 확정/상태 전이는 PERFUMER/FRAGRANCE_RND/PROJECT_MANAGER만 할 수 있다. */
+	@Test
+	void a_non_transition_role_is_forbidden_from_changing_status() {
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
+				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
+
+		assertThatThrownBy(() -> service.changeStatus(500L, 1L, CandidateStatus.REJECTED))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(candidateService, never()).transitionStatus(any(), any(), any());
+		verify(logRepository, never()).save(any());
 	}
 
 	@Test

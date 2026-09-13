@@ -15,6 +15,7 @@ import com.perfumeryaicore.domain.request.repository.FragranceRequestRepository;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.ProductCategory;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.common.TargetRegion;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -32,6 +33,8 @@ class FragranceRequestServiceTest {
 	@BeforeEach
 	void memberIsProjectMember() {
 		when(accessGuard.isMember(10L, 1L)).thenReturn(true);
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				.thenReturn(ProjectRole.PERFUMER);
 	}
 
 	private CreateFragranceRequestRequest createDto(boolean complete) {
@@ -148,5 +151,29 @@ class FragranceRequestServiceTest {
 		assertThatThrownBy(() -> service.create(10L, 999L, createDto(true)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.REQUEST_ACCESS_DENIED);
+	}
+
+	/** BE-004/BE-002: SUPPLIER/AUDITOR 같은 비쓰기 역할은 요청을 만들거나 바꿀 수 없다. */
+	@Test
+	void create_is_forbidden_for_a_non_write_role() {
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
+
+		assertThatThrownBy(() -> service.create(10L, 1L, createDto(true)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	@Test
+	void update_is_forbidden_for_a_non_write_role() {
+		FragranceRequest incomplete = FragranceRequest.create(10L, 1L, "raw");
+		when(repository.findById(5L)).thenReturn(Optional.of(incomplete));
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
+
+		assertThatThrownBy(() -> service.update(5L, 1L, new UpdateFragranceRequestRequest(
+				"new text", null, null, null, null, null, null, null, null, null)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
 }

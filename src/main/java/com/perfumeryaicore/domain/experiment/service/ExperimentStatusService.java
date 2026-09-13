@@ -4,8 +4,10 @@ import com.perfumeryaicore.domain.experiment.dto.response.ExperimentStatusLogRes
 import com.perfumeryaicore.domain.experiment.entity.ExperimentStatusLog;
 import com.perfumeryaicore.domain.experiment.repository.ExperimentStatusLogRepository;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
+import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
 import com.perfumeryaicore.global.common.CandidateStatus;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -24,12 +26,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ExperimentStatusService {
 
+	/** 실험 확정·상태 전이는 이 세 역할만 수행한다(BE-004). */
+	private static final ProjectRole[] TRANSITION_ROLES = {
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER
+	};
+
 	private final CandidateService candidateService;
 	private final ApprovalGateService approvalGateService;
 	private final ExperimentStatusLogRepository logRepository;
+	private final ProjectAccessGuard accessGuard;
 
 	@Transactional
 	public ExperimentStatusLogResponse changeStatus(Long candidateId, Long memberId, CandidateStatus target) {
+		Long projectId = candidateService.getProjectId(candidateId, memberId);
+		accessGuard.requireRole(projectId, memberId, TRANSITION_ROLES);
+
 		if (target == CandidateStatus.CONFIRMED_FOR_EXPERIMENT && !approvalGateService.isApproved(candidateId)) {
 			throw new BusinessException(ErrorCode.SAFETY_GATE_NOT_APPROVED);
 		}
