@@ -35,6 +35,10 @@ public class ApprovalGate extends BaseTimeEntity {
 	@Column(name = "candidate_id", nullable = false)
 	private Long candidateId;
 
+	/** 승인 당시 후보의 현재 버전(BE-032). 이후 새 버전이 생겨도 이 승인은 이 버전에만 유효하다. */
+	@Column(name = "candidate_version_id", nullable = false)
+	private Long candidateVersionId;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private ApprovalDecision decision;
@@ -45,14 +49,17 @@ public class ApprovalGate extends BaseTimeEntity {
 	@Column(name = "reviewed_by", nullable = false)
 	private Long reviewedBy;
 
-	private ApprovalGate(Long candidateId, ApprovalDecision decision, String comment, Long reviewedBy) {
+	private ApprovalGate(Long candidateId, Long candidateVersionId, ApprovalDecision decision, String comment,
+			Long reviewedBy) {
 		this.candidateId = candidateId;
+		this.candidateVersionId = candidateVersionId;
 		this.decision = decision;
 		this.comment = comment;
 		this.reviewedBy = reviewedBy;
 	}
 
-	public static ApprovalGate register(Long candidateId, ApprovalDecision decision, String comment, Long reviewedBy) {
-		return new ApprovalGate(candidateId, decision, comment, reviewedBy);
+	public static ApprovalGate register(Long candidateId, Long candidateVersionId, ApprovalDecision decision,
+			String comment, Long reviewedBy) {
+		return new ApprovalGate(candidateId, candidateVersionId, decision, comment, reviewedBy);
 	}
 }

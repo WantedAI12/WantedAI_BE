@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public record ApprovalGateResponse(
 		Long gateId,
 		Long candidateId,
+		Long candidateVersionId,
 		ApprovalDecision decision,
 		String comment,
 		Long reviewedBy,
@@ -15,7 +16,7 @@ public record ApprovalGateResponse(
 
 	public static ApprovalGateResponse from(ApprovalGate gate) {
 		return new ApprovalGateResponse(
-				gate.getId(), gate.getCandidateId(), gate.getDecision(), gate.getComment(),
-				gate.getReviewedBy(), gate.getCreatedAt());
+				gate.getId(), gate.getCandidateId(), gate.getCandidateVersionId(), gate.getDecision(),
+				gate.getComment(), gate.getReviewedBy(), gate.getCreatedAt());
 	}
 }
