@@ -28,6 +28,11 @@ jwt:
   access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}
   refresh-token-validity-seconds: ${JWT_REFRESH_TTL:1209600}
 
+security:
+  login:
+    max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+    lockout-duration-seconds: ${LOGIN_LOCKOUT_SECONDS:900}
+
 ai:
   modal:
     base-url: ${AI_MODAL_BASE_URL:https://junseong2im--perfumery-ai-core-web.modal.run}

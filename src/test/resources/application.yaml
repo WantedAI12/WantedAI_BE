@@ -16,6 +16,11 @@ jwt:
   access-token-validity-seconds: 3600
   refresh-token-validity-seconds: 1209600
 
+security:
+  login:
+    max-attempts: 5
+    lockout-duration-seconds: 900
+
 ai:
   modal:
     base-url: http://localhost:0

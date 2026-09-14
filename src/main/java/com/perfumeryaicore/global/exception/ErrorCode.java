@@ -24,6 +24,7 @@ public enum ErrorCode {
 	INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 Refresh Token입니다."),
 	REFRESH_TOKEN_REUSE_DETECTED(HttpStatus.UNAUTHORIZED,
 			"이미 폐기된 Refresh Token이 재사용되어 해당 계정의 모든 세션을 종료했습니다."),
+	ACCOUNT_LOCKED(HttpStatus.LOCKED, "로그인 실패 횟수를 초과해 계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도하세요."),
 	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
 	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
