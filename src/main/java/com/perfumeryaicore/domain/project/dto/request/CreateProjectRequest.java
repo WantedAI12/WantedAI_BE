@@ -3,6 +3,7 @@ package com.perfumeryaicore.domain.project.dto.request;
 import com.perfumeryaicore.domain.project.entity.Project;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 
 public record CreateProjectRequest(
 
@@ -11,6 +12,10 @@ public record CreateProjectRequest(
 		String name,
 
 		@Size(max = Project.DESCRIPTION_MAX)
-		String description
+		String description,
+
+		LocalDate startDate,
+
+		LocalDate dueDate
 ) {
 }

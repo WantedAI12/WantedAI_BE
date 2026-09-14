@@ -49,7 +49,8 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectResponse create(Long memberId, CreateProjectRequest dto) {
-		Project project = projectRepository.save(Project.create(dto.name(), dto.description()));
+		Project project = projectRepository.save(
+				Project.create(dto.name(), dto.description(), dto.startDate(), dto.dueDate()));
 		projectMemberRepository.save(ProjectMember.create(project.getId(), memberId, ProjectRole.ORG_ADMIN));
 		log.info("[PROJECT] id={} created by={} (ORG_ADMIN)", project.getId(), memberId);
 		return ProjectResponse.of(project, ProjectRole.ORG_ADMIN, 1);
@@ -90,6 +91,11 @@ public class ProjectService {
 				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		Project project = findProject(projectId);
 		project.updateInfo(dto.name(), dto.description());
+		if (dto.assigneeMemberId() != null
+				&& !projectMemberRepository.existsByProjectIdAndMemberId(projectId, dto.assigneeMemberId())) {
+			throw new BusinessException(ErrorCode.PROJECT_MEMBER_NOT_FOUND, "담당자는 이 프로젝트의 멤버여야 합니다.");
+		}
+		project.updateSchedule(dto.startDate(), dto.dueDate(), dto.assigneeMemberId());
 		return ProjectResponse.of(project, myRole, projectMemberRepository.countByProjectId(projectId));
 	}
 

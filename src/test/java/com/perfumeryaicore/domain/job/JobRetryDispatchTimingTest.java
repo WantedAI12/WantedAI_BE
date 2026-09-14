@@ -45,7 +45,7 @@ class JobRetryDispatchTimingTest {
 
 	@Test
 	void redispatch_runs_only_after_the_retry_transaction_commits() {
-		Project project = projectRepository.save(Project.create("재시도 타이밍 테스트", null));
+		Project project = projectRepository.save(Project.create("재시도 타이밍 테스트", null, null, null));
 		Member member = memberRepository.save(Member.builder()
 				.email("retry-timing-" + System.nanoTime() + "@example.com")
 				.passwordHash("x")

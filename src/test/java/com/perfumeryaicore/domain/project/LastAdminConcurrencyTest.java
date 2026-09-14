@@ -51,7 +51,7 @@ class LastAdminConcurrencyTest {
 
 	@Test
 	void only_one_of_two_concurrent_requests_may_demote_the_last_two_admins() throws Exception {
-		Project project = projectRepository.save(Project.create("동시성 테스트 프로젝트", null));
+		Project project = projectRepository.save(Project.create("동시성 테스트 프로젝트", null, null, null));
 		Member admin1 = createMember();
 		Member admin2 = createMember();
 		projectMemberRepository.save(ProjectMember.create(project.getId(), admin1.getId(), ProjectRole.ORG_ADMIN));

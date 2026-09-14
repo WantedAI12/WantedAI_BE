@@ -66,7 +66,7 @@ class ProjectServiceTest {
 		when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
-		ProjectResponse res = service.create(ACTOR_ID, new CreateProjectRequest("여름 프로젝트", "설명"));
+		ProjectResponse res = service.create(ACTOR_ID, new CreateProjectRequest("여름 프로젝트", "설명", null, null));
 
 		assertThat(res.myRole()).isEqualTo(ProjectRole.ORG_ADMIN);
 		assertThat(res.memberCount()).isEqualTo(1);
@@ -91,7 +91,7 @@ class ProjectServiceTest {
 	void update_is_forbidden_for_a_plain_member_role() {
 		actorHasRole(ProjectRole.PERFUMER);
 
-		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("새 이름", null)))
+		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("새 이름", null, null, null, null)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
@@ -101,11 +101,50 @@ class ProjectServiceTest {
 	void update_rejects_a_blank_name() {
 		actorHasRole(ProjectRole.ORG_ADMIN);
 		when(projectRepository.findById(PROJECT_ID))
-				.thenReturn(Optional.of(Project.create("기존 이름", "설명")));
+				.thenReturn(Optional.of(Project.create("기존 이름", "설명", null, null)));
 
-		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("   ", null)))
+		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("   ", null, null, null, null)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+	}
+
+	@Test
+	void create_rejects_a_due_date_before_the_start_date() {
+		assertThatThrownBy(() -> service.create(ACTOR_ID, new CreateProjectRequest(
+				"프로젝트", null, java.time.LocalDate.of(2026, 6, 10), java.time.LocalDate.of(2026, 6, 1))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+		verify(projectRepository, never()).save(any());
+	}
+
+	@Test
+	void update_rejects_an_assignee_who_is_not_a_project_member() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		when(projectRepository.findById(PROJECT_ID))
+				.thenReturn(Optional.of(Project.create("기존 이름", "설명", null, null)));
+		when(projectMemberRepository.existsByProjectIdAndMemberId(PROJECT_ID, TARGET_ID)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID,
+				new UpdateProjectRequest(null, null, null, null, TARGET_ID)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_MEMBER_NOT_FOUND);
+	}
+
+	@Test
+	void update_applies_schedule_and_assignee_when_the_assignee_is_a_member() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		when(projectRepository.findById(PROJECT_ID))
+				.thenReturn(Optional.of(Project.create("기존 이름", "설명", null, null)));
+		when(projectMemberRepository.existsByProjectIdAndMemberId(PROJECT_ID, TARGET_ID)).thenReturn(true);
+		java.time.LocalDate start = java.time.LocalDate.of(2026, 6, 1);
+		java.time.LocalDate due = java.time.LocalDate.of(2026, 6, 30);
+
+		ProjectResponse res = service.update(PROJECT_ID, ACTOR_ID,
+				new UpdateProjectRequest(null, null, start, due, TARGET_ID));
+
+		assertThat(res.startDate()).isEqualTo(start);
+		assertThat(res.dueDate()).isEqualTo(due);
+		assertThat(res.assigneeMemberId()).isEqualTo(TARGET_ID);
 	}
 
 	@Test
