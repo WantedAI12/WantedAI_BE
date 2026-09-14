@@ -26,6 +26,7 @@ import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -55,11 +56,23 @@ public class SupplyChangeService {
 	@Transactional
 	public SupplyChangeResponse register(String ingredientId, Long memberId, RegisterSupplyChangeRequest dto) {
 		accessGuard.requireRole(dto.projectId(), memberId, ProjectRole.SUPPLIER, ProjectRole.FRAGRANCE_RND);
+
+		// BE-070: 동일 변경원천 ID 중복 수신은 새 이벤트를 만들지 않고 기존 이벤트를 그대로 반환한다.
+		if (dto.changeSourceId() != null) {
+			Optional<SupplyChange> existing = supplyChangeRepository.findByChangeSourceId(dto.changeSourceId());
+			if (existing.isPresent()) {
+				log.info("[SUPPLY] change source id {} already recorded as change={} - skipping duplicate",
+						dto.changeSourceId(), existing.get().getId());
+				return SupplyChangeResponse.from(existing.get());
+			}
+		}
+
 		validatePriceConsistency(dto);
+		validateGenericFieldChange(dto);
 
 		SupplyChange change = supplyChangeRepository.save(SupplyChange.create(
-				dto.projectId(), ingredientId, dto.changeType(),
-				dto.previousPricePerKg(), dto.newPricePerKg(), dto.note(), memberId));
+				dto.projectId(), ingredientId, dto.changeType(), dto.previousPricePerKg(), dto.newPricePerKg(),
+				dto.changedField(), dto.previousValue(), dto.newValue(), dto.changeSourceId(), dto.note(), memberId));
 
 		int affected = analyzeAndStore(change, ingredientId);
 		change.recordAffectedCount(affected);
@@ -153,6 +166,35 @@ public class SupplyChangeService {
 				: !actuallyIncreased && dto.newPricePerKg() < dto.previousPricePerKg();
 		if (!directionMatches) {
 			throw new BusinessException(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		}
+	}
+
+	/** BE-070에서 새로 추가한 필드 기반 변경 유형만 changedField/previousValue/newValue를 필수로 받는다. */
+	private static final SupplyChangeType[] FIELD_DIFF_REQUIRED_TYPES = {
+			SupplyChangeType.SAFETY_REGULATORY_CHANGE, SupplyChangeType.IDENTITY_CHANGE,
+			SupplyChangeType.SUPPLY_TERMS_CHANGE
+	};
+
+	/**
+	 * BE-070: 가격 외 신규 유형(안전·규제·식별·재고)은 어떤 필드가 어떻게 바뀌었는지를
+	 * changedField/previousValue/newValue로 필수로 받는다 - note 자유 텍스트만으로는
+	 * "정확한 이전·새 값"을 조회할 수 없다. 기존 유형(DISCONTINUED 등)은 필드 diff 없이도
+	 * 등록할 수 있던 기존 동작을 그대로 유지한다.
+	 */
+	private void validateGenericFieldChange(RegisterSupplyChangeRequest dto) {
+		boolean requiresFieldDiff = false;
+		for (SupplyChangeType type : FIELD_DIFF_REQUIRED_TYPES) {
+			if (dto.changeType() == type) {
+				requiresFieldDiff = true;
+				break;
+			}
+		}
+		if (!requiresFieldDiff) {
+			return;
+		}
+		if (dto.changedField() == null || dto.changedField().isBlank()
+				|| dto.previousValue() == null || dto.newValue() == null) {
+			throw new BusinessException(ErrorCode.SUPPLY_CHANGE_FIELD_DIFF_REQUIRED);
 		}
 	}
 

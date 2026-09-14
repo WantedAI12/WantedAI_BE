@@ -30,7 +30,8 @@ import lombok.NoArgsConstructor;
 		name = "supply_changes",
 		indexes = {
 				@Index(name = "idx_supply_changes_project_id", columnList = "project_id"),
-				@Index(name = "idx_supply_changes_ingredient", columnList = "ingredient_external_id")
+				@Index(name = "idx_supply_changes_ingredient", columnList = "ingredient_external_id"),
+				@Index(name = "idx_supply_changes_source_id", columnList = "change_source_id", unique = true)
 		}
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -56,6 +57,30 @@ public class SupplyChange extends BaseTimeEntity {
 	@Column(name = "new_price_per_kg")
 	private Double newPricePerKg;
 
+	/**
+	 * BE-070: 가격 외 변경(안전·규제·식별·재고 등)의 필드별 이전/새 값. 어떤 필드가 바뀌었는지는
+	 * {@code changedField}에 자유 텍스트로 남긴다(예: {@code ifra_restriction_category},
+	 * {@code cas_number}, {@code moq_kg}) - 변경 유형별로 스키마를 늘리는 대신, 필드명 자체를
+	 * 값으로 취급해 유형이 늘어나도 엔티티를 매번 바꾸지 않아도 되게 한다.
+	 */
+	@Column(name = "changed_field", length = 100)
+	private String changedField;
+
+	@Lob
+	@Column(name = "previous_value")
+	private String previousValue;
+
+	@Lob
+	@Column(name = "new_value")
+	private String newValue;
+
+	/**
+	 * BE-070: 외부 원천(공급사 시스템 등)의 변경 이벤트 ID. 있으면 동일 원천 ID 중복 수신 시
+	 * 중복 이벤트를 만들지 않고 기존 이벤트를 그대로 반환한다(Job의 idempotencyKey와 같은 패턴).
+	 */
+	@Column(name = "change_source_id", length = 200)
+	private String changeSourceId;
+
 	@Lob
 	@Column(name = "note")
 	private String note;
@@ -71,12 +96,17 @@ public class SupplyChange extends BaseTimeEntity {
 	private Long reportedBy;
 
 	private SupplyChange(Long projectId, String ingredientExternalId, SupplyChangeType changeType,
-			Double previousPricePerKg, Double newPricePerKg, String note, Long reportedBy) {
+			Double previousPricePerKg, Double newPricePerKg, String changedField, String previousValue,
+			String newValue, String changeSourceId, String note, Long reportedBy) {
 		this.projectId = projectId;
 		this.ingredientExternalId = ingredientExternalId;
 		this.changeType = changeType;
 		this.previousPricePerKg = previousPricePerKg;
 		this.newPricePerKg = newPricePerKg;
+		this.changedField = changedField;
+		this.previousValue = previousValue;
+		this.newValue = newValue;
+		this.changeSourceId = changeSourceId;
 		this.note = note;
 		this.reportedBy = reportedBy;
 		this.analysisStatus = JobStatus.SUCCEEDED;
@@ -84,9 +114,10 @@ public class SupplyChange extends BaseTimeEntity {
 	}
 
 	public static SupplyChange create(Long projectId, String ingredientExternalId, SupplyChangeType changeType,
-			Double previousPricePerKg, Double newPricePerKg, String note, Long reportedBy) {
-		return new SupplyChange(projectId, ingredientExternalId, changeType,
-				previousPricePerKg, newPricePerKg, note, reportedBy);
+			Double previousPricePerKg, Double newPricePerKg, String changedField, String previousValue,
+			String newValue, String changeSourceId, String note, Long reportedBy) {
+		return new SupplyChange(projectId, ingredientExternalId, changeType, previousPricePerKg, newPricePerKg,
+				changedField, previousValue, newValue, changeSourceId, note, reportedBy);
 	}
 
 	public void recordAffectedCount(int count) {

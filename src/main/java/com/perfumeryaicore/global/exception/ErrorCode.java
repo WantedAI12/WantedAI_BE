@@ -79,6 +79,8 @@ public enum ErrorCode {
 	SUPPLY_CHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "공급 변경 이벤트를 찾을 수 없습니다."),
 	SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT(HttpStatus.BAD_REQUEST,
 			"가격 변동 유형에는 이전/변경 가격이 모두 필요하며, 가격 변화 방향이 유형과 일치해야 합니다."),
+	SUPPLY_CHANGE_FIELD_DIFF_REQUIRED(HttpStatus.BAD_REQUEST,
+			"이 변경 유형은 changedField/previousValue/newValue를 모두 입력해야 합니다."),
 
 	// 비동기 작업(Job)
 	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
