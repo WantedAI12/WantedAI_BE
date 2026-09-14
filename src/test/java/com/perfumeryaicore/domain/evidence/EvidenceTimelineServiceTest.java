@@ -40,7 +40,7 @@ class EvidenceTimelineServiceTest {
 		when(approvalGateService.history(900L, 1L)).thenReturn(List.of(new ApprovalGateResponse(
 				1L, 900L, 1200L, ApprovalDecision.APPROVED, "IFRA 충족", 3L, t2)));
 		when(experimentStatusService.history(900L, 1L)).thenReturn(List.of(new ExperimentStatusLogResponse(
-				900L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, 5L, t1)));
+				900L, CandidateStatus.UNDER_REVIEW, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, 1200L, null, 5L, t1)));
 
 		List<EvidenceEvent> timeline = service.timeline(900L, 1L);
 

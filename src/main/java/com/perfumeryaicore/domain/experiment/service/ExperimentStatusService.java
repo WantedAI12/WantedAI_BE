@@ -3,6 +3,7 @@ package com.perfumeryaicore.domain.experiment.service;
 import com.perfumeryaicore.domain.experiment.dto.response.ExperimentStatusLogResponse;
 import com.perfumeryaicore.domain.experiment.entity.ExperimentStatusLog;
 import com.perfumeryaicore.domain.experiment.repository.ExperimentStatusLogRepository;
+import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
@@ -37,21 +38,25 @@ public class ExperimentStatusService {
 	private final ProjectAccessGuard accessGuard;
 
 	@Transactional
-	public ExperimentStatusLogResponse changeStatus(Long candidateId, Long memberId, CandidateStatus target) {
+	public ExperimentStatusLogResponse changeStatus(Long candidateId, Long memberId, CandidateStatus target,
+			String reason) {
 		Long projectId = candidateService.getProjectId(candidateId, memberId);
 		accessGuard.requireRole(projectId, memberId, TRANSITION_ROLES);
 
-		if (target == CandidateStatus.CONFIRMED_FOR_EXPERIMENT) {
-			Long currentVersionId = candidateService.getCurrentVersionId(candidateId, memberId);
-			if (!approvalGateService.isApprovedForVersion(candidateId, currentVersionId)) {
-				throw new BusinessException(ErrorCode.SAFETY_GATE_NOT_APPROVED);
-			}
+		// BE-040: 전이 직전 상태·현재 버전을 먼저 읽어 이력에 고정한다.
+		CandidateResponse candidate = candidateService.get(candidateId, memberId);
+		CandidateStatus previousStatus = candidate.status();
+		Long candidateVersionId = candidateService.getCurrentVersionId(candidateId, memberId);
+
+		if (target == CandidateStatus.CONFIRMED_FOR_EXPERIMENT
+				&& !approvalGateService.isApprovedForVersion(candidateId, candidateVersionId)) {
+			throw new BusinessException(ErrorCode.SAFETY_GATE_NOT_APPROVED);
 		}
 
 		candidateService.transitionStatus(candidateId, memberId, target);
-		ExperimentStatusLog logEntry = logRepository.save(
-				ExperimentStatusLog.record(candidateId, target, memberId));
-		log.info("[EXPERIMENT] candidate={} status={} by={}", candidateId, target, memberId);
+		ExperimentStatusLog logEntry = logRepository.save(ExperimentStatusLog.record(
+				candidateId, previousStatus, target, candidateVersionId, reason, memberId));
+		log.info("[EXPERIMENT] candidate={} status={} -> {} by={}", candidateId, previousStatus, target, memberId);
 		return ExperimentStatusLogResponse.from(logEntry);
 	}
 
