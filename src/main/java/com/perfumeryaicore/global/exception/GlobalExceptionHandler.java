@@ -5,8 +5,10 @@ import com.perfumeryaicore.global.response.ApiResponse.FieldErrorDetail;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -57,12 +59,23 @@ public class GlobalExceptionHandler {
 				.body(ApiResponse.error(code.name(), code.getMessage()));
 	}
 
-	@ExceptionHandler({MethodArgumentTypeMismatchException.class, HandlerMethodValidationException.class})
+	/** 잘못된 쿼리·경로 파라미터, 그리고 깨진 JSON 본문(BE-084) — 모두 사용자 입력 오류다. */
+	@ExceptionHandler({MethodArgumentTypeMismatchException.class, HandlerMethodValidationException.class,
+			HttpMessageNotReadableException.class})
 	public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
 		log.warn("Bad request parameter: {}", e.getMessage());
 		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.getStatus())
 				.body(ApiResponse.error(ErrorCode.VALIDATION_FAILED.name(),
 						ErrorCode.VALIDATION_FAILED.getMessage()));
+	}
+
+	/** DB 무결성 제약 충돌(BE-084) — 예: 애플리케이션 검증을 통과한 뒤 동시 요청이 유니크 제약을 깬 경우. */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+		log.warn("Data integrity violation: {}", e.getMessage());
+		ErrorCode code = ErrorCode.DATA_INTEGRITY_VIOLATION;
+		return ResponseEntity.status(code.getStatus())
+				.body(ApiResponse.error(code.name(), code.getMessage()));
 	}
 
 	@ExceptionHandler(Exception.class)

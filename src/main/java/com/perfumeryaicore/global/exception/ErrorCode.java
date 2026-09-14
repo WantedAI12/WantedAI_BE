@@ -15,6 +15,7 @@ public enum ErrorCode {
 	VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 유효하지 않습니다."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 요청이 먼저 이 자원을 변경했습니다. 최신 상태를 다시 확인한 뒤 시도하세요."),
+	DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "요청이 기존 데이터와 충돌합니다. 중복이거나 참조 관계를 위반했을 수 있습니다."),
 
 	// 인증/회원
 	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),

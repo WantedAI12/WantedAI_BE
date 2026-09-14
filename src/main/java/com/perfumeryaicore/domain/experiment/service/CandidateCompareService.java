@@ -9,8 +9,10 @@ import com.perfumeryaicore.domain.prediction.service.PredictionService;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.DoubleSummaryStatistics;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +26,32 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CandidateCompareService {
 
+	/** 한 번에 비교할 수 있는 후보 수 상한(BE-084). FE 화면 기본값(3)과는 별개인 백엔드 안전장치 —
+	 * 정확한 값은 팀 확정 전이라 잠정값이다. */
+	private static final int MAX_COMPARE_CANDIDATES = 10;
+
 	private final CandidateService candidateService;
 	private final PredictionService predictionService;
 
 	public List<CandidateCompareRow> compare(Long requestId, List<Long> candidateIds, Long memberId) {
+		validateIds(candidateIds);
 		return candidateIds.stream()
 				.map(candidateId -> compareOne(requestId, candidateId, memberId))
 				.toList();
+	}
+
+	private void validateIds(List<Long> candidateIds) {
+		if (candidateIds == null || candidateIds.isEmpty()) {
+			throw new BusinessException(ErrorCode.VALIDATION_FAILED, "비교할 후보 ID가 최소 1개 필요합니다.");
+		}
+		if (candidateIds.size() > MAX_COMPARE_CANDIDATES) {
+			throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+					"한 번에 비교할 수 있는 후보는 최대 " + MAX_COMPARE_CANDIDATES + "개입니다.");
+		}
+		Set<Long> distinct = new HashSet<>(candidateIds);
+		if (distinct.size() != candidateIds.size()) {
+			throw new BusinessException(ErrorCode.VALIDATION_FAILED, "중복된 후보 ID가 있습니다.");
+		}
 	}
 
 	private CandidateCompareRow compareOne(Long requestId, Long candidateId, Long memberId) {

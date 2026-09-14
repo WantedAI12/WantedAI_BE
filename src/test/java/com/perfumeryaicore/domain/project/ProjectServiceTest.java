@@ -96,6 +96,18 @@ class ProjectServiceTest {
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
 
+	/** BE-084: PATCH로 프로젝트 이름을 공백으로 바꿀 수 없다. */
+	@Test
+	void update_rejects_a_blank_name() {
+		actorHasRole(ProjectRole.ORG_ADMIN);
+		when(projectRepository.findById(PROJECT_ID))
+				.thenReturn(Optional.of(Project.create("기존 이름", "설명")));
+
+		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("   ", null)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_FAILED);
+	}
+
 	@Test
 	void add_member_rejects_an_unknown_email() {
 		actorHasRole(ProjectRole.PROJECT_MANAGER);

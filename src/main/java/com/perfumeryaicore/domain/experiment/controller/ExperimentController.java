@@ -5,6 +5,8 @@ import com.perfumeryaicore.domain.experiment.dto.response.CandidateCompareRow;
 import com.perfumeryaicore.domain.experiment.dto.response.ExperimentStatusLogResponse;
 import com.perfumeryaicore.domain.experiment.service.CandidateCompareService;
 import com.perfumeryaicore.domain.experiment.service.ExperimentStatusService;
+import com.perfumeryaicore.global.exception.BusinessException;
+import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,12 +36,21 @@ public class ExperimentController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long requestId,
 			@RequestParam String candidateIds) {
-		List<Long> ids = List.of(candidateIds.split(",")).stream()
-				.map(String::trim)
-				.filter(s -> !s.isEmpty())
-				.map(Long::valueOf)
-				.toList();
-		return ApiResponse.success(candidateCompareService.compare(requestId, ids, principal.id()));
+		return ApiResponse.success(
+				candidateCompareService.compare(requestId, parseCandidateIds(candidateIds), principal.id()));
+	}
+
+	/** 콤마로 구분된 ID 목록을 파싱한다. 숫자가 아닌 값이 섞여 있으면 500이 아니라 400으로 거부한다(BE-084). */
+	private static List<Long> parseCandidateIds(String raw) {
+		try {
+			return List.of(raw.split(",")).stream()
+					.map(String::trim)
+					.filter(s -> !s.isEmpty())
+					.map(Long::valueOf)
+					.toList();
+		} catch (NumberFormatException e) {
+			throw new BusinessException(ErrorCode.VALIDATION_FAILED, "candidateIds에 숫자가 아닌 값이 있습니다: " + raw);
+		}
 	}
 
 	@Operation(summary = "실험 후보로 확정 또는 상태 변경")
