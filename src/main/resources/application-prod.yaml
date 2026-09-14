@@ -24,3 +24,10 @@ jwt:
 # 사고로 이어지기 쉽다 - 실제 배포 도메인이 정해지면 그 값을 환경변수로 주입한다.
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# 운영에서는 인증 여부와 무관하게 헬스체크 상세 정보(DB 연결 정보 등)를 절대 노출하지
+# 않는다(BE-089) - 기본 프로필의 when-authorized보다 한 단계 더 보수적으로 강제한다.
+management:
+  endpoint:
+    health:
+      show-details: never

@@ -60,4 +60,22 @@ class ProdProfileStartupTest {
 		assertThat(hibernate.get("ddl-auto")).isEqualTo("validate");
 		assertThat(jpa.get("show-sql")).isEqualTo(Boolean.FALSE);
 	}
+
+	/** BE-089: 운영에서는 인증 여부와 무관하게 헬스체크 상세 정보를 절대 노출하지 않는다. */
+	@SuppressWarnings("unchecked")
+	@Test
+	void prod_profile_never_exposes_health_details() {
+		Map<String, Object> root;
+		try (InputStream in = getClass().getResourceAsStream("/application-prod.yaml")) {
+			root = new Yaml().load(in);
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
+
+		Map<String, Object> management = (Map<String, Object>) root.get("management");
+		Map<String, Object> endpoint = (Map<String, Object>) management.get("endpoint");
+		Map<String, Object> health = (Map<String, Object>) endpoint.get("health");
+
+		assertThat(health.get("show-details")).isEqualTo("never");
+	}
 }
