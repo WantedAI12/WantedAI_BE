@@ -100,6 +100,52 @@ class SupplyChangeServiceTest {
 	}
 
 	@Test
+	void register_rejects_a_price_increase_with_missing_price_fields() {
+		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
+				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, null, 140.0, "메모")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		verify(changeRepository, never()).save(any());
+	}
+
+	@Test
+	void register_rejects_a_price_increase_whose_prices_actually_went_down() {
+		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
+				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, 140.0, 90.0, "메모")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		verify(changeRepository, never()).save(any());
+	}
+
+	@Test
+	void register_rejects_a_price_decrease_whose_prices_actually_went_up() {
+		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
+				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_DECREASE, 90.0, 140.0, "메모")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		verify(changeRepository, never()).save(any());
+	}
+
+	@Test
+	void register_rejects_a_price_change_with_equal_prices() {
+		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
+				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, 100.0, 100.0, "메모")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+	}
+
+	@Test
+	void register_allows_a_non_price_change_type_without_any_price_fields() {
+		when(changeRepository.save(any(SupplyChange.class))).thenAnswer(inv -> withId(inv.getArgument(0), 500L));
+		when(candidateRepository.findByProjectIdIn(List.of(10L))).thenReturn(List.of());
+
+		var response = service.register("bergamot_oil", 1L,
+				new RegisterSupplyChangeRequest(10L, SupplyChangeType.DISCONTINUED, null, null, "단종 통보"));
+
+		assertThat(response.affectedCandidateCount()).isEqualTo(0);
+	}
+
+	@Test
 	void get_unknown_change_is_not_found() {
 		when(changeRepository.findById(9L)).thenReturn(Optional.empty());
 
