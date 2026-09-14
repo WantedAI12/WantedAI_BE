@@ -10,4 +10,6 @@ public interface FragranceRequestRepository extends JpaRepository<FragranceReque
 	List<FragranceRequest> findByProjectIdOrderByCreatedAtDesc(Long projectId);
 
 	List<FragranceRequest> findByProjectIdAndStatusOrderByCreatedAtDesc(Long projectId, RequestStatus status);
+
+	List<FragranceRequest> findByProjectIdIn(List<Long> projectIds);
 }
