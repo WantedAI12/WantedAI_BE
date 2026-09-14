@@ -106,6 +106,7 @@ public class CandidateGenerationService {
 		if (result.parsed().isNoSafeMatch()) {
 			String reason = result.parsed().message();
 			log.info("[FORMULA] job={} request={} no_safe_match: {}", jobId, requestId, reason);
+			candidatePersistenceService.persistRejection(requestId, request.getProjectId(), jobId, memberId, result);
 			throw new BusinessException(ErrorCode.GENERATION_REJECTED,
 					reason != null ? reason : ErrorCode.GENERATION_REJECTED.getMessage());
 		}

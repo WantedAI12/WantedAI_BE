@@ -3,9 +3,11 @@ package com.perfumeryaicore.domain.formula.service;
 import com.perfumeryaicore.domain.formula.entity.Candidate;
 import com.perfumeryaicore.domain.formula.entity.CandidateVersion;
 import com.perfumeryaicore.domain.formula.entity.CandidateVersionIngredient;
+import com.perfumeryaicore.domain.formula.entity.GenerationRejection;
 import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
+import com.perfumeryaicore.domain.formula.repository.GenerationRejectionRepository;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse.RecipeLine;
@@ -25,6 +27,7 @@ public class CandidatePersistenceService {
 	private final CandidateRepository candidateRepository;
 	private final CandidateVersionRepository candidateVersionRepository;
 	private final CandidateVersionIngredientRepository ingredientRepository;
+	private final GenerationRejectionRepository generationRejectionRepository;
 
 	@Transactional
 	public Long persist(Long requestId, Long projectId, Long memberId, Long jobId, PerfumeryAiResult result) {
@@ -65,5 +68,17 @@ public class CandidatePersistenceService {
 		}
 
 		return candidate.getId();
+	}
+
+	/**
+	 * BE-035: 기권(no_safe_match) 응답의 진단 데이터를 후보와 별도로 보존한다. 절대 후보로
+	 * 만들지 않는다 - 정상 추천 후보 목록에 섞이면 안 된다.
+	 */
+	@Transactional
+	public void persistRejection(Long requestId, Long projectId, Long jobId, Long memberId,
+			PerfumeryAiResult result) {
+		generationRejectionRepository.save(GenerationRejection.of(
+				requestId, projectId, jobId, result.parsed().status(), result.parsed().message(),
+				result.rawJson(), memberId));
 	}
 }
