@@ -3,6 +3,7 @@ package com.perfumeryaicore.domain.supply.controller;
 import com.perfumeryaicore.domain.supply.dto.request.RecordSupplyReviewDecisionRequest;
 import com.perfumeryaicore.domain.supply.dto.request.RegisterSupplyChangeRequest;
 import com.perfumeryaicore.domain.supply.dto.response.AffectedCandidateResponse;
+import com.perfumeryaicore.domain.supply.dto.response.PendingSupplyReviewResponse;
 import com.perfumeryaicore.domain.supply.dto.response.SupplyChangeResponse;
 import com.perfumeryaicore.domain.supply.dto.response.SupplyReviewDecisionResponse;
 import com.perfumeryaicore.domain.supply.service.SupplyChangeService;
@@ -53,6 +54,14 @@ public class SupplyController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long changeId) {
 		return ApiResponse.success(supplyChangeService.affectedCandidates(changeId, principal.id()));
+	}
+
+	@Operation(summary = "재검토 알림 화면: 프로젝트 내 아직 재검토되지 않은 영향 후보 목록 (최신순)")
+	@GetMapping("/projects/{projectId}/pending-supply-reviews")
+	public ApiResponse<List<PendingSupplyReviewResponse>> pendingReviews(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long projectId) {
+		return ApiResponse.success(supplyChangeService.pendingReviews(projectId, principal.id()));
 	}
 
 	@Operation(summary = "재검토 후속 결정 기록 (PERFUMER / FRAGRANCE_RND / PROJECT_MANAGER)")
