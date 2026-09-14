@@ -11,6 +11,10 @@ import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
+import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
+import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
+import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
+import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -92,11 +96,17 @@ public class CandidateGenerationService {
 	private Long generate(Long jobId, Long requestId, Long memberId, JobExecutor.JobContext context) {
 		// 재시도 시점 기준으로 다시 확인 (그 사이 요청이 수정·차단됐을 수 있음)
 		FragranceRequest request = fragranceRequestService.getConfirmedRequest(requestId, memberId);
+
+		if (request.getProductCategory() == ProductCategory.BODY_LOTION) {
+			return generateLotion(jobId, requestId, memberId, request, context);
+		}
+
 		FormulaGenerationRequest modalRequest = formulaRequestMapper.toModalRequest(request);
 
 		// BE-048: 동시성 게이트를 실제로 통과한 직후에만 시작을 기록한다 - 이전에는 세마포어
 		// 대기열에서 기다린 시간까지 'AI 호출 경과 시간'에 섞여 들어갔다.
-		PerfumeryAiResult result = perfumeryAiClient.generateFormula(modalRequest, "job-" + jobId, context::aiCallStarted);
+		PerfumeryAiResult<FormulaGenerationResponse> result =
+				perfumeryAiClient.generateFormula(modalRequest, "job-" + jobId, context::aiCallStarted);
 
 		if (context.isCancelled()) {
 			log.info("[FORMULA] job={} request={} cancelled before persisting result", jobId, requestId);
@@ -106,11 +116,41 @@ public class CandidateGenerationService {
 		if (result.parsed().isNoSafeMatch()) {
 			String reason = result.parsed().message();
 			log.info("[FORMULA] job={} request={} no_safe_match: {}", jobId, requestId, reason);
-			candidatePersistenceService.persistRejection(requestId, request.getProjectId(), jobId, memberId, result);
+			candidatePersistenceService.persistRejection(requestId, request.getProjectId(), jobId, memberId,
+					result.parsed().status(), reason, result.rawJson());
 			throw new BusinessException(ErrorCode.GENERATION_REJECTED,
 					reason != null ? reason : ErrorCode.GENERATION_REJECTED.getMessage());
 		}
 
 		return candidatePersistenceService.persist(requestId, request.getProjectId(), memberId, jobId, result);
+	}
+
+	/**
+	 * 바디로션 설계(1단계, 팀 확인 완료): 기존 Candidate/CandidateVersion 공통 흐름을 재사용하되,
+	 * 기권·탐색미완료 등 정상 추천이 아닌 응답은 절대 후보로 만들지 않는다(BE-035와 같은 원칙).
+	 */
+	private Long generateLotion(Long jobId, Long requestId, Long memberId, FragranceRequest request,
+			JobExecutor.JobContext context) {
+		LotionEstimateRequest modalRequest = LotionEstimateRequest.of(
+				request.getRawText(), request.getRiskTier(), request.getMaxIngredientPricePerKg());
+
+		PerfumeryAiResult<LotionDesignResponse> result =
+				perfumeryAiClient.designLotion(modalRequest, "job-" + jobId, context::aiCallStarted);
+
+		if (context.isCancelled()) {
+			log.info("[LOTION] job={} request={} cancelled before persisting result", jobId, requestId);
+			throw new BusinessException(ErrorCode.JOB_CANCELLED);
+		}
+
+		if (!result.parsed().isUsableCandidate()) {
+			log.info("[LOTION] job={} request={} not usable: status={} profileTargetMet={} recipeSize={}",
+					jobId, requestId, result.parsed().status(), result.parsed().profileTargetMet(),
+					result.parsed().recipeSize());
+			candidatePersistenceService.persistRejection(requestId, request.getProjectId(), jobId, memberId,
+					result.parsed().status(), result.parsed().status(), result.rawJson());
+			throw new BusinessException(ErrorCode.GENERATION_REJECTED, ErrorCode.GENERATION_REJECTED.getMessage());
+		}
+
+		return candidatePersistenceService.persistLotion(requestId, request.getProjectId(), memberId, jobId, result);
 	}
 }

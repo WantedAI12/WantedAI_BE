@@ -30,7 +30,11 @@ import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse.Deployment;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse.RecipeLine;
+import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
+import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
+import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.ProjectRole;
+import com.perfumeryaicore.global.common.TargetRegion;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -61,6 +65,14 @@ class CandidateGenerationServiceTest {
 
 	private FragranceRequest confirmedRequest() {
 		FragranceRequest request = FragranceRequest.create(10L, 1L, "citrus woody");
+		ReflectionTestUtils.setField(request, "id", 5L);
+		return request;
+	}
+
+	private FragranceRequest lotionRequest() {
+		FragranceRequest request = FragranceRequest.create(10L, 1L, "citrus lotion");
+		request.applyUpdate(null, ProductCategory.BODY_LOTION, TargetRegion.KR, 1,
+				null, null, null, null, 150.0, null);
 		ReflectionTestUtils.setField(request, "id", 5L);
 		return request;
 	}
@@ -192,7 +204,8 @@ class CandidateGenerationServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
-		verify(candidatePersistenceService).persistRejection(5L, 10L, 77L, 1L, aiResult);
+		verify(candidatePersistenceService).persistRejection(5L, 10L, 77L, 1L,
+				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", "{\"status\":\"no_safe_match\"}");
 	}
 
 	/** BE-004: SUPPLIER/AUDITOR는 후보 생성을 트리거할 수 없다. */
@@ -239,5 +252,61 @@ class CandidateGenerationServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.JOB_CANCELLED);
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
+	}
+
+	/** 바디로션 1단계: productCategory가 BODY_LOTION이면 표준 흐름이 아니라 로션 전용 경로로 간다. */
+	@Test
+	void a_lotion_request_is_routed_to_the_lotion_client_method_not_the_standard_one() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(lotionRequest());
+		Job job = jobWithId(77L);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
+		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		LotionDesignResponse parsed = new LotionDesignResponse("ready", true, false, null,
+				List.of(tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode()
+						.put("ingredient_id", "citral").put("name", "Citral")),
+				List.of());
+		PerfumeryAiResult<LotionDesignResponse> aiResult = new PerfumeryAiResult<>("{\"status\":\"ready\"}", parsed, 500L);
+		when(perfumeryAiClient.designLotion(any(LotionEstimateRequest.class), eq("job-77"), any())).thenReturn(aiResult);
+		when(candidatePersistenceService.persistLotion(5L, 10L, 1L, 77L, aiResult)).thenReturn(900L);
+
+		service.enqueue(5L, 1L);
+
+		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
+
+		Long resultRefId = captor.getValue().run(context(false, () -> { }));
+
+		assertThat(resultRefId).isEqualTo(900L);
+		verify(perfumeryAiClient, never()).generateFormula(any(), any(), any());
+		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
+	}
+
+	/** 팀 확인: recipe/closest_candidate가 있어도 profile_target_met이 거짓이면 후보로 저장하면 안 된다. */
+	@Test
+	void a_lotion_response_that_is_not_a_usable_candidate_is_rejected_without_creating_a_candidate() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(lotionRequest());
+		Job job = jobWithId(77L);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
+		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		LotionDesignResponse parsed = new LotionDesignResponse(
+				"insufficient_observed_target_coverage", false, true, null, List.of(), List.of());
+		PerfumeryAiResult<LotionDesignResponse> aiResult =
+				new PerfumeryAiResult<>("{\"status\":\"insufficient_observed_target_coverage\"}", parsed, 500L);
+		when(perfumeryAiClient.designLotion(any(LotionEstimateRequest.class), eq("job-77"), any())).thenReturn(aiResult);
+
+		service.enqueue(5L, 1L);
+
+		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
+
+		assertThatThrownBy(() -> captor.getValue().run(context(false, () -> { })))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
+		verify(candidatePersistenceService, never()).persistLotion(anyLong(), anyLong(), anyLong(), anyLong(), any());
+		verify(candidatePersistenceService).persistRejection(5L, 10L, 77L, 1L,
+				"insufficient_observed_target_coverage", "insufficient_observed_target_coverage",
+				"{\"status\":\"insufficient_observed_target_coverage\"}");
 	}
 }

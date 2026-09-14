@@ -18,7 +18,13 @@ public enum ProductCategory {
 	BODY_WASH("body_wash"),
 	CANDLE("candle"),
 	ROOM_SPRAY("room_spray"),
-	DIFFUSER("diffuser");
+	DIFFUSER("diffuser"),
+	/**
+	 * 표준 조향 AI 계약({@code /v1/formulas})의 8종과 달리, 이 카테고리는 별도 엔드포인트
+	 * ({@code /v1/applications/body-lotion/design})로 라우팅되는 신호로만 쓰인다 -
+	 * {@code modalValue}가 표준 요청의 {@code product_category} 필드로 나가지 않는다.
+	 */
+	BODY_LOTION("body_lotion");
 
 	/** 조향 AI({@code product_category}) 전달 값. */
 	private final String modalValue;

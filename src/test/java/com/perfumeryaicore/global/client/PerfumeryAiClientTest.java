@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
+import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
+import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
+import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -50,7 +53,7 @@ class PerfumeryAiClientTest {
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
 				respondWith(HttpStatus.OK, OK_FORMULA, calls));
 
-		PerfumeryAiResult result = client.generateFormula(
+		PerfumeryAiResult<FormulaGenerationResponse> result = client.generateFormula(
 				FormulaGenerationRequest.standard("citrus woody", "EU", "eau_de_parfum", null, null, 12), "trace-1");
 
 		assertThat(calls.get()).isEqualTo(1);
@@ -163,10 +166,55 @@ class PerfumeryAiClientTest {
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
 				respondWith(HttpStatus.OK, "{\"status\":\"no_safe_match\",\"recipe\":[]}", calls));
 
-		PerfumeryAiResult result = client.generateFormula(
+		PerfumeryAiResult<FormulaGenerationResponse> result = client.generateFormula(
 				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t");
 
 		assertThat(result.parsed().isNoSafeMatch()).isTrue();
 		assertThat(result.parsed().recipeSize()).isZero();
+	}
+
+	@Test
+	void designLotion_success_preserves_raw_and_parses_view() {
+		AtomicInteger calls = new AtomicInteger();
+		String okLotion = """
+				{"status":"ready","profile_target_met":true,
+				 "recipe":[{"ingredient_id":"citral","name":"Citral","concentrate_percent":1.2}],
+				 "closest_candidate":[]}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, okLotion, calls));
+
+		PerfumeryAiResult<LotionDesignResponse> result =
+				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0), "trace-1", null);
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().status()).isEqualTo("ready");
+		assertThat(result.parsed().isUsableCandidate()).isTrue();
+		assertThat(result.parsed().recipeSize()).isEqualTo(1);
+	}
+
+	/** 팀 확인: recipe/closest_candidate가 있어도 profile_target_met이 거짓이면 정상 후보가 아니다. */
+	@Test
+	void designLotion_with_unmet_profile_target_is_not_a_usable_candidate() {
+		AtomicInteger calls = new AtomicInteger();
+		String rejected = """
+				{"status":"insufficient_observed_target_coverage","profile_target_met":false,
+				 "search_incomplete":true,"recipe":[],"closest_candidate":[]}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, rejected, calls));
+
+		PerfumeryAiResult<LotionDesignResponse> result =
+				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0), "trace-1", null);
+
+		assertThat(result.parsed().isUsableCandidate()).isFalse();
+		assertThat(result.parsed().searchIncomplete()).isTrue();
+	}
+
+	@Test
+	void designLotion_response_without_a_status_is_a_schema_mismatch() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, "{}", calls));
+
+		assertThatThrownBy(() -> client.designLotion(
+				LotionEstimateRequest.of("citrus lotion", 1, 150.0), "trace-1", null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 	}
 }
