@@ -1,10 +1,14 @@
 package com.perfumeryaicore.domain.ingredient.controller;
 
 import com.perfumeryaicore.domain.ingredient.dto.request.CatalogSyncRequest;
+import com.perfumeryaicore.domain.ingredient.dto.request.RegisterIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.request.UpdateIngredientMasterRequest;
 import com.perfumeryaicore.domain.ingredient.dto.response.CatalogSyncResultResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientDetailResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.IngredientMasterResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientResponse;
 import com.perfumeryaicore.domain.ingredient.service.CatalogSyncService;
+import com.perfumeryaicore.domain.ingredient.service.IngredientMasterService;
 import com.perfumeryaicore.domain.ingredient.service.IngredientQueryService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
@@ -18,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +36,7 @@ public class IngredientController {
 
 	private final IngredientQueryService ingredientQueryService;
 	private final CatalogSyncService catalogSyncService;
+	private final IngredientMasterService ingredientMasterService;
 
 	@Operation(summary = "원료 목록/검색 (생성된 조향식에서 관측된 원료의 로컬 미러, 프로젝트 범위)")
 	@GetMapping("/ingredients")
@@ -66,5 +72,39 @@ public class IngredientController {
 			@RequestParam Long projectId,
 			@PathVariable String ingredientId) {
 		return ApiResponse.success(ingredientQueryService.get(principal.id(), projectId, ingredientId));
+	}
+
+	@Operation(summary = "원료 마스터 등록 (BE-062, 처방에 쓰인 적 없어도 등록·검색 가능)")
+	@PostMapping("/ingredient-master")
+	public ResponseEntity<ApiResponse<IngredientMasterResponse>> registerMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody RegisterIngredientMasterRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(ingredientMasterService.register(principal.id(), request)));
+	}
+
+	@Operation(summary = "원료 마스터 검색 (이름/CAS 부분 일치, 프로젝트 범위 아님 - 원료는 공용 참조 데이터)")
+	@GetMapping("/ingredient-master")
+	public ApiResponse<List<IngredientMasterResponse>> searchMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam(required = false) String query) {
+		return ApiResponse.success(ingredientMasterService.search(query));
+	}
+
+	@Operation(summary = "원료 마스터 상세 (외부 ID 기준)")
+	@GetMapping("/ingredient-master/{externalId}")
+	public ApiResponse<IngredientMasterResponse> getMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable String externalId) {
+		return ApiResponse.success(ingredientMasterService.get(externalId));
+	}
+
+	@Operation(summary = "원료 마스터 수정 (외부 ID는 여기서 바꿀 수 없음)")
+	@PatchMapping("/ingredient-master/{externalId}")
+	public ApiResponse<IngredientMasterResponse> updateMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable String externalId,
+			@Valid @RequestBody UpdateIngredientMasterRequest request) {
+		return ApiResponse.success(ingredientMasterService.update(externalId, principal.id(), request));
 	}
 }
