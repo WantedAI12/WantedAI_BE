@@ -66,7 +66,7 @@ class SensoryTestServiceTest {
 
 	private static PredictionResponse prediction(Double similarity) {
 		return new PredictionResponse(
-				CANDIDATE_ID, 1200L, "prototype_ready", similarity, "kind", 0.7, 64.0, true, "kind", "s", "s",
+				CANDIDATE_ID, 1200L, "prototype_ready", similarity, "kind", "0.7", 64.0, true, "kind", "s", "s",
 				new HumanValidation(false, null, null, null, null, null), null, null, null);
 	}
 

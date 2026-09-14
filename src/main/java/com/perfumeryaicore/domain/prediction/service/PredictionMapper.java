@@ -55,7 +55,7 @@ public class PredictionMapper {
 				text(root, "status"),
 				number(root, "similarity_score"),
 				text(root, "similarity_kind"),
-				number(root, "confidence"),
+				text(root, "confidence"),
 				number(root, "model_applicability_percent"),
 				bool(root, "scientific_model_domain_passed"),
 				text(root, "scientific_uncertainty_kind"),

@@ -52,6 +52,7 @@ class PredictionMapperTest {
 
 		assertThat(response.similarityScore()).isEqualTo(87.42);
 		assertThat(response.similarityKind()).isEqualTo("semantic_profile_proxy");
+		assertThat(response.confidence()).isEqualTo("0.71");
 		assertThat(response.modelApplicabilityPercent()).isEqualTo(64.0);
 		assertThat(response.scientificModelDomainPassed()).isTrue();
 
@@ -77,6 +78,16 @@ class PredictionMapperTest {
 		assertThat(uncertainty.scientificUncertaintyKind()).isEqualTo("monte_carlo_quantile");
 		assertThat(uncertainty.simulation().p05()).isEqualTo(41.2);
 		assertThat(uncertainty.diagnostics().has("physsim_similarity_score")).isTrue();
+	}
+
+	/** confidence는 항상 숫자가 아니다 - "heuristic_only" 같은 문자열 상태값을 그대로 보존해야 한다. */
+	@Test
+	void a_string_status_confidence_value_is_preserved_as_is_not_coerced_to_zero() {
+		String raw = RAW_RESPONSE.replace("\"confidence\": 0.71,", "\"confidence\": \"heuristic_only\",");
+
+		PredictionResponse response = mapper.toResponse(view(raw));
+
+		assertThat(response.confidence()).isEqualTo("heuristic_only");
 	}
 
 	@Test

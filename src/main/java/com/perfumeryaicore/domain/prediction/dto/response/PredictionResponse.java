@@ -22,7 +22,13 @@ public record PredictionResponse(
 		String status,
 		Double similarityScore,
 		String similarityKind,
-		Double confidence,
+
+		/**
+		 * 항상 숫자는 아니다 - {@code "heuristic_only"} 같은 문자열 상태값으로 올 때가 있다
+		 * (실서버 확인 완료). 임의로 숫자로 바꾸거나 0으로 대체하지 않는다.
+		 */
+		String confidence,
+
 		Double modelApplicabilityPercent,
 		Boolean scientificModelDomainPassed,
 		String scientificUncertaintyKind,

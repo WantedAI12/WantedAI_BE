@@ -40,7 +40,7 @@ class EvidenceReportPdfRendererTest {
 				null, null, null, null);
 
 		PredictionResponse prediction = new PredictionResponse(
-				900L, 1200L, "prototype_ready", 87.42, "semantic_profile_proxy", 0.71, 64.0, true,
+				900L, 1200L, "prototype_ready", 87.42, "semantic_profile_proxy", "0.71", 64.0, true,
 				"monte_carlo_quantile", "not_independently_validated", "research_only",
 				new HumanValidation(false, null, null, null, null, null),
 				null, null, null);

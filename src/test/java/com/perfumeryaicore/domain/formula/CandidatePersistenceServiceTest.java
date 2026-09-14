@@ -47,7 +47,7 @@ class CandidatePersistenceServiceTest {
 		});
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
-				"prototype_ready", "안전 조건 충족", "f-1", 0.9, 42.0,
+				"prototype_ready", "안전 조건 충족", "f-1", "0.9", 42.0,
 				List.of(
 						new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99),
 						new RecipeLine("iso_e_super", "Iso E Super", "base", 20.0, 3.0, 85.0, 0.99)),
