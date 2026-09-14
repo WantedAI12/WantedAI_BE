@@ -21,6 +21,9 @@ security:
     max-attempts: 5
     lockout-duration-seconds: 900
 
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:5173
+
 ai:
   modal:
     base-url: http://localhost:0
