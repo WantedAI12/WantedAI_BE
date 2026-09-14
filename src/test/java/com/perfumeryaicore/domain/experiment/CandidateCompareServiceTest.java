@@ -37,7 +37,7 @@ class CandidateCompareServiceTest {
 	}
 
 	private PredictionResponse prediction(Long candidateId, Double similarity, Double applicability) {
-		return new PredictionResponse(candidateId, 900L, "prototype_ready", similarity, "kind", 0.5,
+		return new PredictionResponse(candidateId, 900L, "prototype_ready", similarity, "kind", "0.5",
 				applicability, true, "kind", "status", "status",
 				new HumanValidation(false, null, null, null, null, null),
 				null, null, null);

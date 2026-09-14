@@ -25,8 +25,13 @@ public record FormulaGenerationResponse(
 		@JsonProperty("formula_id")
 		String formulaId,
 
+		/**
+		 * 항상 숫자는 아니다 - {@code "heuristic_only"} 같은 문자열 상태값으로 올 때가 있다
+		 * (실서버 확인 완료). 숫자였던 값도 문자열로 그대로 보존하며, 임의로 숫자로 바꾸거나
+		 * 0으로 대체하지 않는다. 숫자 신뢰도가 필요하면 별도 필드로 계약해야 한다.
+		 */
 		@JsonProperty("confidence")
-		Double confidence,
+		String confidence,
 
 		@JsonProperty("estimated_concentrate_cost_per_kg")
 		Double estimatedConcentrateCostPerKg,
