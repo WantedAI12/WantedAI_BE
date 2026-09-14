@@ -32,13 +32,14 @@ public class IngredientController {
 	private final IngredientQueryService ingredientQueryService;
 	private final CatalogSyncService catalogSyncService;
 
-	@Operation(summary = "원료 목록/검색 (생성된 조향식에서 관측된 원료의 로컬 미러)")
+	@Operation(summary = "원료 목록/검색 (생성된 조향식에서 관측된 원료의 로컬 미러, 프로젝트 범위)")
 	@GetMapping("/ingredients")
 	public ApiResponse<List<IngredientResponse>> list(
 			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam Long projectId,
 			@RequestParam(required = false) String query,
 			@RequestParam(required = false) String pyramid) {
-		return ApiResponse.success(ingredientQueryService.list(principal.id(), query, pyramid));
+		return ApiResponse.success(ingredientQueryService.list(principal.id(), projectId, query, pyramid));
 	}
 
 	@Operation(summary = "카탈로그 동기화 실행 (비동기) — FRAGRANCE_RND / ORG_ADMIN")
@@ -58,11 +59,12 @@ public class IngredientController {
 		return ApiResponse.success(catalogSyncService.getResult(jobId, principal.id()));
 	}
 
-	@Operation(summary = "원료 상세 (관측 단가·가용성·사용 후보)")
+	@Operation(summary = "원료 상세 (관측 단가·가용성·사용 후보, 프로젝트 범위)")
 	@GetMapping("/ingredients/{ingredientId}")
 	public ApiResponse<IngredientDetailResponse> get(
 			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam Long projectId,
 			@PathVariable String ingredientId) {
-		return ApiResponse.success(ingredientQueryService.get(principal.id(), ingredientId));
+		return ApiResponse.success(ingredientQueryService.get(principal.id(), projectId, ingredientId));
 	}
 }
