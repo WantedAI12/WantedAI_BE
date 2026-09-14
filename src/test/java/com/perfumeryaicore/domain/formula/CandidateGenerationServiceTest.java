@@ -165,8 +165,9 @@ class CandidateGenerationServiceTest {
 		verify(candidatePersistenceService, times(1)).persist(5L, 10L, 1L, 77L, aiResult);
 	}
 
+	/** BE-035: 기권 진단 데이터는 별도로 보존하되, 후보로는 절대 만들지 않는다. */
 	@Test
-	void no_safe_match_is_rejected_without_persisting() {
+	void no_safe_match_is_rejected_without_creating_a_candidate_but_persists_the_rejection_diagnostics() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
 		Job job = jobWithId(77L);
 		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
@@ -191,6 +192,7 @@ class CandidateGenerationServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.GENERATION_REJECTED);
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
+		verify(candidatePersistenceService).persistRejection(5L, 10L, 77L, 1L, aiResult);
 	}
 
 	/** BE-004: SUPPLIER/AUDITOR는 후보 생성을 트리거할 수 없다. */

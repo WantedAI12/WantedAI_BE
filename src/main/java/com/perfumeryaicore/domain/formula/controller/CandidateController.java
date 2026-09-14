@@ -5,10 +5,12 @@ import com.perfumeryaicore.domain.formula.dto.request.UpsertCandidateMemoRequest
 import com.perfumeryaicore.domain.formula.dto.response.CandidateMemoResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
+import com.perfumeryaicore.domain.formula.dto.response.GenerationRejectionResponse;
 import com.perfumeryaicore.domain.formula.entity.CandidateMemoType;
 import com.perfumeryaicore.domain.formula.service.CandidateGenerationService;
 import com.perfumeryaicore.domain.formula.service.CandidateMemoService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
+import com.perfumeryaicore.domain.formula.service.GenerationRejectionService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
@@ -36,6 +38,7 @@ public class CandidateController {
 	private final CandidateGenerationService generationService;
 	private final CandidateService candidateService;
 	private final CandidateMemoService candidateMemoService;
+	private final GenerationRejectionService generationRejectionService;
 
 	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기, Idempotency-Key로 중복 제출 방지)")
 	@PostMapping("/requests/{requestId}/candidates")
@@ -45,6 +48,14 @@ public class CandidateController {
 			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
 				.body(ApiResponse.success(generationService.enqueue(requestId, principal.id(), idempotencyKey)));
+	}
+
+	@Operation(summary = "해당 요청에서 AI가 기권(no_safe_match)한 시도 이력 (후보 아님, 정상 후보 목록과 섞이지 않음)")
+	@GetMapping("/requests/{requestId}/generation-rejections")
+	public ApiResponse<List<GenerationRejectionResponse>> generationRejections(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId) {
+		return ApiResponse.success(generationRejectionService.list(requestId, principal.id()));
 	}
 
 	@Operation(summary = "해당 요청의 후보 목록")

@@ -14,6 +14,7 @@ import com.perfumeryaicore.domain.formula.entity.CandidateVersionIngredient;
 import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
+import com.perfumeryaicore.domain.formula.repository.GenerationRejectionRepository;
 import com.perfumeryaicore.domain.formula.service.CandidatePersistenceService;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
@@ -29,9 +30,11 @@ class CandidatePersistenceServiceTest {
 	private final CandidateVersionRepository candidateVersionRepository = mock(CandidateVersionRepository.class);
 	private final CandidateVersionIngredientRepository ingredientRepository =
 			mock(CandidateVersionIngredientRepository.class);
+	private final GenerationRejectionRepository generationRejectionRepository =
+			mock(GenerationRejectionRepository.class);
 
 	private final CandidatePersistenceService service = new CandidatePersistenceService(
-			candidateRepository, candidateVersionRepository, ingredientRepository);
+			candidateRepository, candidateVersionRepository, ingredientRepository, generationRejectionRepository);
 
 	@Test
 	void persists_candidate_first_version_and_ingredient_lines() {
@@ -86,6 +89,31 @@ class CandidatePersistenceServiceTest {
 		assertThat(lines.get(0).getCandidateVersionId()).isEqualTo(900L);
 		assertThat(lines.get(0).getIngredientExternalId()).isEqualTo("dihydromyrcenol");
 		assertThat(lines.get(1).getIngredientName()).isEqualTo("Iso E Super");
+	}
+
+	/** BE-035: 기권 진단은 후보와 완전히 별도 테이블에 저장되고, 후보 저장소는 건드리지 않는다. */
+	@Test
+	void persistRejection_saves_the_raw_response_without_touching_candidate_repositories() {
+		when(generationRejectionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		FormulaGenerationResponse rejected = new FormulaGenerationResponse(
+				"no_safe_match", "요청 기준 95.00점 미충족", null, null, null,
+				List.of(), null, null, null, null, null, null, null, null);
+		PerfumeryAiResult result = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 25000L);
+
+		service.persistRejection(5L, 10L, 77L, 1L, result);
+
+		var captor = org.mockito.ArgumentCaptor.forClass(
+				com.perfumeryaicore.domain.formula.entity.GenerationRejection.class);
+		verify(generationRejectionRepository).save(captor.capture());
+		assertThat(captor.getValue().getRequestId()).isEqualTo(5L);
+		assertThat(captor.getValue().getProjectId()).isEqualTo(10L);
+		assertThat(captor.getValue().getJobId()).isEqualTo(77L);
+		assertThat(captor.getValue().getReasonCode()).isEqualTo("no_safe_match");
+		assertThat(captor.getValue().getMessage()).isEqualTo("요청 기준 95.00점 미충족");
+		assertThat(captor.getValue().getRawResponse()).isEqualTo("{\"status\":\"no_safe_match\"}");
+		verify(candidateRepository, never()).save(any());
+		verify(candidateVersionRepository, never()).save(any());
 	}
 
 	@Test
