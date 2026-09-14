@@ -9,13 +9,10 @@ import com.perfumeryaicore.domain.job.entity.Job;
 import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.service.JobExecutor;
 import com.perfumeryaicore.domain.job.service.JobService;
-import com.perfumeryaicore.domain.prediction.service.PredictionService;
-import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.storage.S3FileStorage;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -38,10 +35,7 @@ public class EvidenceReportService {
 	private static final Duration DOWNLOAD_URL_TTL = Duration.ofMinutes(15);
 
 	private final CandidateService candidateService;
-	private final SafetyEvaluationService safetyEvaluationService;
-	private final PredictionService predictionService;
-	private final EvidenceTimelineService evidenceTimelineService;
-	private final SensoryTestService sensoryTestService;
+	private final EvidenceReportSnapshotService snapshotService;
 	private final EvidenceReportRepository evidenceReportRepository;
 	private final EvidenceReportPdfRenderer pdfRenderer;
 	private final S3FileStorage s3FileStorage;
@@ -56,20 +50,14 @@ public class EvidenceReportService {
 	 */
 	public EvidenceReportService(
 			CandidateService candidateService,
-			SafetyEvaluationService safetyEvaluationService,
-			PredictionService predictionService,
-			EvidenceTimelineService evidenceTimelineService,
-			SensoryTestService sensoryTestService,
+			EvidenceReportSnapshotService snapshotService,
 			EvidenceReportRepository evidenceReportRepository,
 			EvidenceReportPdfRenderer pdfRenderer,
 			S3FileStorage s3FileStorage,
 			@Lazy JobService jobService,
 			JobExecutor jobExecutor) {
 		this.candidateService = candidateService;
-		this.safetyEvaluationService = safetyEvaluationService;
-		this.predictionService = predictionService;
-		this.evidenceTimelineService = evidenceTimelineService;
-		this.sensoryTestService = sensoryTestService;
+		this.snapshotService = snapshotService;
 		this.evidenceReportRepository = evidenceReportRepository;
 		this.pdfRenderer = pdfRenderer;
 		this.s3FileStorage = s3FileStorage;
@@ -90,15 +78,9 @@ public class EvidenceReportService {
 	}
 
 	private Long generate(Long jobId, Long candidateId, Long memberId, JobExecutor.JobContext context) {
-		EvidenceReportBundle bundle = new EvidenceReportBundle(
-				candidateId,
-				candidateService.get(candidateId, memberId),
-				safetyEvaluationService.get(candidateId, memberId),
-				predictionService.get(candidateId, memberId),
-				evidenceTimelineService.timeline(candidateId, memberId),
-				sensoryTestService.list(candidateId, memberId),
-				LocalDateTime.now(),
-				memberId);
+		// BE-058: 5개 조회를 EvidenceReportSnapshotService의 단일 트랜잭션 안에서 수행해,
+		// 생성 도중 후보·평가가 바뀌어도 PDF/JSON이 한 고정 시점의 데이터만 참조하게 한다.
+		EvidenceReportBundle bundle = snapshotService.snapshot(candidateId, memberId);
 
 		String reportJson = jsonMapper.writeValueAsString(bundle);
 

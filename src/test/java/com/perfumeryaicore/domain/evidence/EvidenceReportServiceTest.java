@@ -11,10 +11,10 @@ import static org.mockito.Mockito.when;
 
 import com.perfumeryaicore.domain.evidence.entity.EvidenceReport;
 import com.perfumeryaicore.domain.evidence.repository.EvidenceReportRepository;
+import com.perfumeryaicore.domain.evidence.service.EvidenceReportBundle;
 import com.perfumeryaicore.domain.evidence.service.EvidenceReportPdfRenderer;
 import com.perfumeryaicore.domain.evidence.service.EvidenceReportService;
-import com.perfumeryaicore.domain.evidence.service.EvidenceTimelineService;
-import com.perfumeryaicore.domain.evidence.service.SensoryTestService;
+import com.perfumeryaicore.domain.evidence.service.EvidenceReportSnapshotService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.domain.job.entity.Job;
@@ -23,8 +23,6 @@ import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.service.JobExecutor;
 import com.perfumeryaicore.domain.job.service.JobExecutor.JobWork;
 import com.perfumeryaicore.domain.job.service.JobService;
-import com.perfumeryaicore.domain.prediction.service.PredictionService;
-import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.storage.S3FileStorage;
@@ -38,10 +36,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class EvidenceReportServiceTest {
 
 	private final CandidateService candidateService = mock(CandidateService.class);
-	private final SafetyEvaluationService safetyEvaluationService = mock(SafetyEvaluationService.class);
-	private final PredictionService predictionService = mock(PredictionService.class);
-	private final EvidenceTimelineService evidenceTimelineService = mock(EvidenceTimelineService.class);
-	private final SensoryTestService sensoryTestService = mock(SensoryTestService.class);
+	private final EvidenceReportSnapshotService snapshotService = mock(EvidenceReportSnapshotService.class);
 	private final EvidenceReportRepository evidenceReportRepository = mock(EvidenceReportRepository.class);
 	private final EvidenceReportPdfRenderer pdfRenderer = mock(EvidenceReportPdfRenderer.class);
 	private final S3FileStorage s3FileStorage = mock(S3FileStorage.class);
@@ -49,8 +44,12 @@ class EvidenceReportServiceTest {
 	private final JobExecutor jobExecutor = mock(JobExecutor.class);
 
 	private final EvidenceReportService service = new EvidenceReportService(
-			candidateService, safetyEvaluationService, predictionService, evidenceTimelineService,
-			sensoryTestService, evidenceReportRepository, pdfRenderer, s3FileStorage, jobService, jobExecutor);
+			candidateService, snapshotService, evidenceReportRepository, pdfRenderer, s3FileStorage,
+			jobService, jobExecutor);
+
+	private EvidenceReportBundle emptyBundle() {
+		return new EvidenceReportBundle(900L, null, null, null, List.of(), List.of(), null, 1L);
+	}
 
 	private Job job(long id) {
 		Job job = Job.pending(10L, JobType.EVIDENCE_REPORT, 1L, "900");
@@ -91,8 +90,7 @@ class EvidenceReportServiceTest {
 		when(jobService.enqueue(10L, JobType.EVIDENCE_REPORT, 1L, "900")).thenReturn(job(88L));
 		when(jobService.get(88L, 1L)).thenReturn(new JobResponse(88L, JobType.EVIDENCE_REPORT,
 				JobStatus.PENDING, false, null, null, null, null));
-		when(evidenceTimelineService.timeline(900L, 1L)).thenReturn(List.of());
-		when(sensoryTestService.list(900L, 1L)).thenReturn(List.of());
+		when(snapshotService.snapshot(900L, 1L)).thenReturn(emptyBundle());
 		when(pdfRenderer.render(any())).thenReturn(new byte[] {'%', 'P', 'D', 'F'});
 		when(evidenceReportRepository.save(any(EvidenceReport.class))).thenAnswer(inv -> {
 			EvidenceReport r = inv.getArgument(0);
@@ -122,8 +120,7 @@ class EvidenceReportServiceTest {
 		when(jobService.enqueue(10L, JobType.EVIDENCE_REPORT, 1L, "900")).thenReturn(job(88L));
 		when(jobService.get(88L, 1L)).thenReturn(new JobResponse(88L, JobType.EVIDENCE_REPORT,
 				JobStatus.PENDING, false, null, null, null, null));
-		when(evidenceTimelineService.timeline(900L, 1L)).thenReturn(List.of());
-		when(sensoryTestService.list(900L, 1L)).thenReturn(List.of());
+		when(snapshotService.snapshot(900L, 1L)).thenReturn(emptyBundle());
 		when(pdfRenderer.render(any())).thenReturn(new byte[] {'%', 'P', 'D', 'F'});
 
 		service.request(900L, 1L);
