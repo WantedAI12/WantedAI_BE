@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientR
 import com.perfumeryaicore.domain.supply.dto.request.RecordSupplyReviewDecisionRequest;
 import com.perfumeryaicore.domain.supply.dto.request.RegisterSupplyChangeRequest;
 import com.perfumeryaicore.domain.supply.dto.response.AffectedCandidateResponse;
+import com.perfumeryaicore.domain.supply.dto.response.PendingSupplyReviewResponse;
 import com.perfumeryaicore.domain.supply.dto.response.SupplyChangeResponse;
 import com.perfumeryaicore.domain.supply.dto.response.SupplyReviewDecisionResponse;
 import com.perfumeryaicore.domain.supply.entity.SupplyChange;
@@ -14,6 +15,7 @@ import com.perfumeryaicore.domain.supply.entity.SupplyChangeAffectedCandidate;
 import com.perfumeryaicore.domain.supply.entity.SupplyChangeType;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecision;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecisionType;
+import com.perfumeryaicore.domain.supply.entity.SupplyReviewStatus;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeAffectedCandidateRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyReviewDecisionRepository;
@@ -102,6 +104,25 @@ public class SupplyChangeService {
 		log.info("[SUPPLY] decision={} candidate={} type={} change={} by={}",
 				decision.getId(), candidateId, dto.decision(), dto.supplyChangeId(), memberId);
 		return SupplyReviewDecisionResponse.from(decision);
+	}
+
+	/** 재검토 알림 화면(BE-090~098 일부): 프로젝트 내 아직 재검토되지 않은 영향 후보를 최신순으로 모은다. */
+	public List<PendingSupplyReviewResponse> pendingReviews(Long projectId, Long memberId) {
+		accessGuard.requireMember(projectId, memberId);
+
+		List<SupplyChange> changes = supplyChangeRepository.findByProjectId(projectId);
+		if (changes.isEmpty()) {
+			return List.of();
+		}
+		Map<Long, SupplyChange> changeById = changes.stream()
+				.collect(Collectors.toMap(SupplyChange::getId, Function.identity()));
+
+		return affectedCandidateRepository
+				.findBySupplyChangeIdInAndReviewStatusOrderByCreatedAtDesc(
+						List.copyOf(changeById.keySet()), SupplyReviewStatus.PENDING_REVIEW)
+				.stream()
+				.map(affected -> PendingSupplyReviewResponse.of(affected, changeById.get(affected.getSupplyChangeId())))
+				.toList();
 	}
 
 	public List<SupplyReviewDecisionResponse> listDecisions(Long candidateId, Long memberId) {

@@ -22,6 +22,7 @@ import com.perfumeryaicore.domain.supply.entity.SupplyChangeAffectedCandidate;
 import com.perfumeryaicore.domain.supply.entity.SupplyChangeType;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecision;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecisionType;
+import com.perfumeryaicore.domain.supply.entity.SupplyReviewStatus;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeAffectedCandidateRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeRepository;
 import com.perfumeryaicore.domain.supply.repository.SupplyReviewDecisionRepository;
@@ -143,6 +144,43 @@ class SupplyChangeServiceTest {
 				new RegisterSupplyChangeRequest(10L, SupplyChangeType.DISCONTINUED, null, null, "단종 통보"));
 
 		assertThat(response.affectedCandidateCount()).isEqualTo(0);
+	}
+
+	@Test
+	void pendingReviews_is_forbidden_for_a_non_member() {
+		when(accessGuard.requireMember(10L, 1L)).thenThrow(new BusinessException(ErrorCode.PROJECT_ACCESS_DENIED));
+
+		assertThatThrownBy(() -> service.pendingReviews(10L, 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+	}
+
+	@Test
+	void pendingReviews_returns_an_empty_list_when_the_project_has_no_supply_changes() {
+		when(changeRepository.findByProjectId(10L)).thenReturn(List.of());
+
+		assertThat(service.pendingReviews(10L, 1L)).isEmpty();
+		verify(affectedRepository, never())
+				.findBySupplyChangeIdInAndReviewStatusOrderByCreatedAtDesc(any(), any());
+	}
+
+	@Test
+	void pendingReviews_pairs_each_pending_affected_candidate_with_its_originating_change() {
+		SupplyChange change = withId(SupplyChange.create(
+				10L, "bergamot_oil", SupplyChangeType.PRICE_INCREASE, 90.0, 140.0, "환율 급등", 1L), 500L);
+		when(changeRepository.findByProjectId(10L)).thenReturn(List.of(change));
+		SupplyChangeAffectedCandidate affected = SupplyChangeAffectedCandidate.of(500L, 100L, 200L, 8.0);
+		when(affectedRepository.findBySupplyChangeIdInAndReviewStatusOrderByCreatedAtDesc(
+				List.of(500L), SupplyReviewStatus.PENDING_REVIEW))
+				.thenReturn(List.of(affected));
+
+		var result = service.pendingReviews(10L, 1L);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).supplyChangeId()).isEqualTo(500L);
+		assertThat(result.get(0).ingredientId()).isEqualTo("bergamot_oil");
+		assertThat(result.get(0).changeType()).isEqualTo(SupplyChangeType.PRICE_INCREASE);
+		assertThat(result.get(0).candidateId()).isEqualTo(100L);
 	}
 
 	@Test
