@@ -3,6 +3,8 @@ package com.perfumeryaicore.global.client;
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
+import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
+import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -82,7 +84,7 @@ public class PerfumeryAiClient {
 	 * @param request Modal 스키마에 맞춘 요청 (정의되지 않은 필드 추가 금지)
 	 * @param traceId 사용자 요청·AI 호출·결과를 같은 로그 흐름으로 잇는 내부 식별자
 	 */
-	public PerfumeryAiResult generateFormula(FormulaGenerationRequest request, String traceId) {
+	public PerfumeryAiResult<FormulaGenerationResponse> generateFormula(FormulaGenerationRequest request, String traceId) {
 		return generateFormula(request, traceId, null);
 	}
 
@@ -90,7 +92,8 @@ public class PerfumeryAiClient {
 	 * @param onSlotAcquired 동시성 게이트를 실제로 통과한 직후(BE-048) 정확히 한 번 호출된다. 그 시점부터
 	 *     지연시간을 측정하므로, 다른 호출이 먼저 게이트를 쓰고 있어 대기한 시간은 지연시간에 섞이지 않는다.
 	 */
-	public PerfumeryAiResult generateFormula(FormulaGenerationRequest request, String traceId, Runnable onSlotAcquired) {
+	public PerfumeryAiResult<FormulaGenerationResponse> generateFormula(
+			FormulaGenerationRequest request, String traceId, Runnable onSlotAcquired) {
 		AtomicLong startedAt = new AtomicLong();
 		Runnable markStart = () -> {
 			startedAt.set(System.currentTimeMillis());
@@ -106,7 +109,36 @@ public class PerfumeryAiClient {
 
 		FormulaGenerationResponse parsed = parse(body, FormulaGenerationResponse.class);
 		verifyFormulaShape(parsed, traceId);
-		return new PerfumeryAiResult(body, parsed, latency);
+		return new PerfumeryAiResult<>(body, parsed, latency);
+	}
+
+	/**
+	 * 바디로션 전용 설계 요청({@code /v1/applications/body-lotion/design}). 표준 향수 계약과
+	 * 완전히 다른 응답 구조라 {@link #verifyFormulaShape}와 같은 엄격한 스키마 검증은 하지
+	 * 않는다 - {@code status}만 있으면 최소한의 유효 응답으로 본다(1단계, 실제 성공 응답
+	 * 예시를 아직 확인하지 못해 방어적으로 최소 검증만 함).
+	 */
+	public PerfumeryAiResult<LotionDesignResponse> designLotion(
+			LotionEstimateRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("body-lotion-design", traceId, markStart,
+				() -> webClient.post().uri("/v1/applications/body-lotion/design")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+
+		LotionDesignResponse parsed = parse(body, LotionDesignResponse.class);
+		if (parsed.status() == null) {
+			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
+		}
+		return new PerfumeryAiResult<>(body, parsed, latency);
 	}
 
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---

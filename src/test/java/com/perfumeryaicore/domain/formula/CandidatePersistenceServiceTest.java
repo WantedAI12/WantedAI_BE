@@ -96,12 +96,8 @@ class CandidatePersistenceServiceTest {
 	void persistRejection_saves_the_raw_response_without_touching_candidate_repositories() {
 		when(generationRejectionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-		FormulaGenerationResponse rejected = new FormulaGenerationResponse(
-				"no_safe_match", "요청 기준 95.00점 미충족", null, null, null,
-				List.of(), null, null, null, null, null, null, null, null);
-		PerfumeryAiResult result = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 25000L);
-
-		service.persistRejection(5L, 10L, 77L, 1L, result);
+		service.persistRejection(5L, 10L, 77L, 1L, "no_safe_match", "요청 기준 95.00점 미충족",
+				"{\"status\":\"no_safe_match\"}");
 
 		var captor = org.mockito.ArgumentCaptor.forClass(
 				com.perfumeryaicore.domain.formula.entity.GenerationRejection.class);
@@ -114,6 +110,49 @@ class CandidatePersistenceServiceTest {
 		assertThat(captor.getValue().getRawResponse()).isEqualTo("{\"status\":\"no_safe_match\"}");
 		verify(candidateRepository, never()).save(any());
 		verify(candidateVersionRepository, never()).save(any());
+	}
+
+	/**
+	 * 로션 recipe 라인은 실제 성공 응답 예시를 아직 확인 못해 JsonNode에서 방어적으로 뽑는다 -
+	 * 흔한 필드명(ingredient_id/name/concentrate_percent)이 있으면 채우고, 없으면 조용히 null이다.
+	 */
+	@Test
+	void persistLotion_extracts_ingredient_lines_defensively_from_raw_json_nodes() {
+		when(candidateRepository.save(any(Candidate.class))).thenAnswer(inv -> {
+			Candidate c = inv.getArgument(0);
+			ReflectionTestUtils.setField(c, "id", 700L);
+			return c;
+		});
+		when(candidateVersionRepository.save(any(CandidateVersion.class))).thenAnswer(inv -> {
+			CandidateVersion v = inv.getArgument(0);
+			ReflectionTestUtils.setField(v, "id", 800L);
+			return v;
+		});
+
+		var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+		var fullLine = mapper.createObjectNode()
+				.put("ingredient_id", "citral").put("name", "Citral")
+				.put("concentrate_percent", 1.2);
+		var nameOnlyLine = mapper.createObjectNode().put("name", "Limonene");
+		var idOnlyLine = mapper.createObjectNode().put("ingredient_id", "linalool");
+
+		var parsed = new com.perfumeryaicore.global.client.dto.LotionDesignResponse(
+				"ready", true, false, null, List.of(fullLine, nameOnlyLine, idOnlyLine), List.of());
+		var result = new PerfumeryAiResult<>("{\"status\":\"ready\"}", parsed, 500L);
+
+		Long candidateId = service.persistLotion(5L, 10L, 1L, 77L, result);
+
+		assertThat(candidateId).isEqualTo(700L);
+		var linesCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+		verify(ingredientRepository).saveAll(linesCaptor.capture());
+		@SuppressWarnings("unchecked")
+		List<CandidateVersionIngredient> lines = linesCaptor.getValue();
+		assertThat(lines).hasSize(3);
+		assertThat(lines.get(0).getIngredientExternalId()).isEqualTo("citral");
+		assertThat(lines.get(0).getIngredientName()).isEqualTo("Citral");
+		assertThat(lines.get(0).getConcentratePercent()).isEqualTo(1.2);
+		assertThat(lines.get(1).getIngredientName()).isEqualTo("Limonene"); // name만 있으면 그대로
+		assertThat(lines.get(2).getIngredientName()).isEqualTo("linalool"); // name 없으면 id로 대체
 	}
 
 	@Test
