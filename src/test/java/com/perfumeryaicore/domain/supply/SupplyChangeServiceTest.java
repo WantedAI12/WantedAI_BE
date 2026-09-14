@@ -61,7 +61,8 @@ class SupplyChangeServiceTest {
 	}
 
 	private RegisterSupplyChangeRequest priceJump() {
-		return new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, 90.0, 140.0, "환율 급등");
+		return new RegisterSupplyChangeRequest(
+				10L, SupplyChangeType.PRICE_INCREASE, 90.0, 140.0, null, null, null, null, "환율 급등");
 	}
 
 	@Test
@@ -103,7 +104,8 @@ class SupplyChangeServiceTest {
 	@Test
 	void register_rejects_a_price_increase_with_missing_price_fields() {
 		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
-				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, null, 140.0, "메모")))
+				new RegisterSupplyChangeRequest(
+						10L, SupplyChangeType.PRICE_INCREASE, null, 140.0, null, null, null, null, "메모")))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
 		verify(changeRepository, never()).save(any());
@@ -112,7 +114,8 @@ class SupplyChangeServiceTest {
 	@Test
 	void register_rejects_a_price_increase_whose_prices_actually_went_down() {
 		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
-				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, 140.0, 90.0, "메모")))
+				new RegisterSupplyChangeRequest(
+						10L, SupplyChangeType.PRICE_INCREASE, 140.0, 90.0, null, null, null, null, "메모")))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
 		verify(changeRepository, never()).save(any());
@@ -121,7 +124,8 @@ class SupplyChangeServiceTest {
 	@Test
 	void register_rejects_a_price_decrease_whose_prices_actually_went_up() {
 		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
-				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_DECREASE, 90.0, 140.0, "메모")))
+				new RegisterSupplyChangeRequest(
+						10L, SupplyChangeType.PRICE_DECREASE, 90.0, 140.0, null, null, null, null, "메모")))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
 		verify(changeRepository, never()).save(any());
@@ -130,7 +134,8 @@ class SupplyChangeServiceTest {
 	@Test
 	void register_rejects_a_price_change_with_equal_prices() {
 		assertThatThrownBy(() -> service.register("bergamot_oil", 1L,
-				new RegisterSupplyChangeRequest(10L, SupplyChangeType.PRICE_INCREASE, 100.0, 100.0, "메모")))
+				new RegisterSupplyChangeRequest(
+						10L, SupplyChangeType.PRICE_INCREASE, 100.0, 100.0, null, null, null, null, "메모")))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
 	}
@@ -141,9 +146,49 @@ class SupplyChangeServiceTest {
 		when(candidateRepository.findByProjectIdIn(List.of(10L))).thenReturn(List.of());
 
 		var response = service.register("bergamot_oil", 1L,
-				new RegisterSupplyChangeRequest(10L, SupplyChangeType.DISCONTINUED, null, null, "단종 통보"));
+				new RegisterSupplyChangeRequest(
+						10L, SupplyChangeType.DISCONTINUED, null, null, null, null, null, null, "단종 통보"));
 
 		assertThat(response.affectedCandidateCount()).isEqualTo(0);
+	}
+
+	/** BE-070: 안전·규제·식별·재고 변경은 changedField/previousValue/newValue 없이 등록할 수 없다. */
+	@Test
+	void register_rejects_a_new_field_based_change_type_without_the_field_diff() {
+		assertThatThrownBy(() -> service.register("bergamot_oil", 1L, new RegisterSupplyChangeRequest(
+				10L, SupplyChangeType.SAFETY_REGULATORY_CHANGE, null, null, null, null, null, null, "메모")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SUPPLY_CHANGE_FIELD_DIFF_REQUIRED);
+		verify(changeRepository, never()).save(any());
+	}
+
+	@Test
+	void register_accepts_a_safety_regulatory_change_with_a_complete_field_diff() {
+		when(changeRepository.save(any(SupplyChange.class))).thenAnswer(inv -> withId(inv.getArgument(0), 500L));
+		when(candidateRepository.findByProjectIdIn(List.of(10L))).thenReturn(List.of());
+
+		var response = service.register("bergamot_oil", 1L, new RegisterSupplyChangeRequest(
+				10L, SupplyChangeType.SAFETY_REGULATORY_CHANGE, null, null,
+				"ifra_restriction_category", "3", "4", null, "IFRA 51차 개정"));
+
+		assertThat(response.changedField()).isEqualTo("ifra_restriction_category");
+		assertThat(response.previousValue()).isEqualTo("3");
+		assertThat(response.newValue()).isEqualTo("4");
+	}
+
+	/** BE-070: 동일 changeSourceId로 다시 등록하면 새 이벤트를 만들지 않고 기존 이벤트를 반환한다. */
+	@Test
+	void register_with_a_duplicate_change_source_id_returns_the_existing_event_without_creating_a_new_one() {
+		SupplyChange existing = withId(SupplyChange.create(
+				10L, "bergamot_oil", SupplyChangeType.PRICE_INCREASE, 90.0, 140.0,
+				null, null, null, "supplier-evt-42", "환율 급등", 1L), 500L);
+		when(changeRepository.findByChangeSourceId("supplier-evt-42")).thenReturn(Optional.of(existing));
+
+		var response = service.register("bergamot_oil", 1L, new RegisterSupplyChangeRequest(
+				10L, SupplyChangeType.PRICE_INCREASE, 90.0, 140.0, null, null, null, "supplier-evt-42", "환율 급등"));
+
+		assertThat(response.changeId()).isEqualTo(500L);
+		verify(changeRepository, never()).save(any());
 	}
 
 	@Test
@@ -167,7 +212,8 @@ class SupplyChangeServiceTest {
 	@Test
 	void pendingReviews_pairs_each_pending_affected_candidate_with_its_originating_change() {
 		SupplyChange change = withId(SupplyChange.create(
-				10L, "bergamot_oil", SupplyChangeType.PRICE_INCREASE, 90.0, 140.0, "환율 급등", 1L), 500L);
+				10L, "bergamot_oil", SupplyChangeType.PRICE_INCREASE, 90.0, 140.0,
+				null, null, null, null, "환율 급등", 1L), 500L);
 		when(changeRepository.findByProjectId(10L)).thenReturn(List.of(change));
 		SupplyChangeAffectedCandidate affected = SupplyChangeAffectedCandidate.of(500L, 100L, 200L, 8.0);
 		when(affectedRepository.findBySupplyChangeIdInAndReviewStatusOrderByCreatedAtDesc(
