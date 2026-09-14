@@ -6,6 +6,9 @@ public record CandidateResponse(
 		Long candidateId,
 		Long requestId,
 		CandidateStatus status,
-		CandidateVersionResponse currentVersion
+		CandidateVersionResponse currentVersion,
+		Long derivedFromCandidateId,
+		Long derivedFromVersionId,
+		String derivationReason
 ) {
 }
