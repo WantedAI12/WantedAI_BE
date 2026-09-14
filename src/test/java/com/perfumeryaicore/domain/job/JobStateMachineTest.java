@@ -124,4 +124,28 @@ class JobStateMachineTest {
 		assertThat(job.isOwnedBy(1L)).isTrue();
 		assertThat(job.isOwnedBy(2L)).isFalse();
 	}
+
+	/** BE-044: 재시작 시점에 RUNNING이던 작업은 attempt와 무관하게 강제로 재시도 가능한 FAILED로 전환된다. */
+	@Test
+	void orphaned_running_job_is_marked_failed_and_retryable_regardless_of_attempt() {
+		Job job = newJob();
+		job.markRunning();
+
+		job.markOrphaned("프로세스 재시작으로 실행이 중단되어 재시도 대상으로 전환됨");
+
+		assertThat(job.getStatus()).isEqualTo(JobStatus.FAILED);
+		assertThat(job.isRetryable()).isTrue();
+		assertThat(job.getFailureReason()).contains("재시작");
+	}
+
+	/** BE-044: PENDING/이미 종료된 작업은 markOrphaned가 조용히 무시한다. */
+	@Test
+	void markOrphaned_is_a_no_op_for_a_job_that_is_not_running() {
+		Job pending = newJob();
+
+		pending.markOrphaned("무시되어야 함");
+
+		assertThat(pending.getStatus()).isEqualTo(JobStatus.PENDING);
+		assertThat(pending.isRetryable()).isFalse();
+	}
 }

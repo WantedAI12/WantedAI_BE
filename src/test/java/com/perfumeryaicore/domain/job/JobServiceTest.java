@@ -260,4 +260,44 @@ class JobServiceTest {
 
 		assertThat(service().isRunningAttempt(1L, attempt)).isTrue();
 	}
+
+	/** BE-044: 기동 시 PENDING과 고아 RUNNING 작업을 모두 등록된 핸들러로 다시 dispatch한다. */
+	@Test
+	void recoverAfterRestart_redispatches_pending_and_orphaned_running_jobs() {
+		Job pendingJob = job(1L, JobStatus.PENDING, false);
+		Job runningJob = job(1L, JobStatus.RUNNING, false);
+		when(jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.RUNNING)).thenReturn(List.of(runningJob));
+		when(jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.PENDING)).thenReturn(List.of(pendingJob));
+
+		List<Job> redispatched = new java.util.ArrayList<>();
+		JobRetryHandler handler = new JobRetryHandler() {
+			@Override
+			public JobType supportedType() {
+				return JobType.CANDIDATE_GENERATION;
+			}
+
+			@Override
+			public void redispatch(Job job) {
+				redispatched.add(job);
+			}
+		};
+
+		service(handler).recoverAfterRestart();
+
+		// 고아였던 RUNNING 작업은 FAILED(retryable)로 전환된 뒤 다시 PENDING으로 리셋된다.
+		assertThat(runningJob.getStatus()).isEqualTo(JobStatus.PENDING);
+		assertThat(redispatched).containsExactlyInAnyOrder(pendingJob, runningJob);
+	}
+
+	/** BE-044: 등록된 재시도 핸들러가 없는 작업 종류는 자동 복구 대상에서 빠지고 그대로 남는다. */
+	@Test
+	void recoverAfterRestart_leaves_jobs_without_a_registered_handler_untouched() {
+		Job pendingJob = job(1L, JobStatus.PENDING, false);
+		when(jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.RUNNING)).thenReturn(List.of());
+		when(jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.PENDING)).thenReturn(List.of(pendingJob));
+
+		service().recoverAfterRestart();
+
+		assertThat(pendingJob.getStatus()).isEqualTo(JobStatus.PENDING);
+	}
 }

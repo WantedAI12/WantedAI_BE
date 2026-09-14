@@ -177,6 +177,44 @@ public class JobService {
 		});
 	}
 
+	/**
+	 * 기동 직후 1회 실행되는 복구(BE-044). 단일 인스턴스 배포를 전제로 한다 — 기동 시점에 RUNNING인
+	 * 작업은 이 프로세스가 방금 떴다는 뜻이므로 그 실행을 하던 (이전) 프로세스는 이미 죽었다고 본다.
+	 * PENDING(아직 아무도 집어가지 않은) 작업과, 방금 고아로 판정해 FAILED(retryable)로 돌린 작업을
+	 * 모두 등록된 {@link JobRetryHandler}로 다시 dispatch한다. 핸들러가 없는 종류는 로그만 남기고
+	 * 건너뛴다 — 사람이 수동으로 확인해야 한다.
+	 */
+	@Transactional
+	public void recoverAfterRestart() {
+		List<Job> orphanedRunning = jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.RUNNING);
+		for (Job job : orphanedRunning) {
+			job.markOrphaned("프로세스 재시작으로 실행이 중단되어 재시도 대상으로 전환됨");
+			log.warn("[JOB] id={} type={} orphaned RUNNING job marked FAILED(retryable) at startup",
+					job.getId(), job.getJobType());
+		}
+
+		List<Job> pending = jobRepository.findByStatusOrderByCreatedAtAsc(JobStatus.PENDING);
+		for (Job job : pending) {
+			log.info("[JOB] id={} type={} recovering PENDING job left over from before restart",
+					job.getId(), job.getJobType());
+			redispatchIfPossible(job);
+		}
+		for (Job job : orphanedRunning) {
+			job.resetForRetry();
+			redispatchIfPossible(job);
+		}
+	}
+
+	private void redispatchIfPossible(Job job) {
+		JobRetryHandler handler = retryHandlers.get(job.getJobType());
+		if (handler == null) {
+			log.warn("[JOB] id={} type={} has no retry handler registered; left for manual recovery",
+					job.getId(), job.getJobType());
+			return;
+		}
+		dispatchAfterCommit(() -> handler.redispatch(job));
+	}
+
 	@Transactional
 	public JobResponse cancel(Long jobId, Long memberId) {
 		Job job = getAccessibleJob(jobId, memberId);

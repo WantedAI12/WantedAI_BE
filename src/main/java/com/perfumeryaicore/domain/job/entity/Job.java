@@ -178,6 +178,21 @@ public class Job extends BaseTimeEntity {
 		this.status = JobStatus.CANCELLED;
 	}
 
+	/**
+	 * 프로세스가 재시작됐는데 RUNNING으로 남아있던 작업을 강제로 실패 처리한다(BE-044).
+	 * 그 실행은 이미 죽은 프로세스의 것이므로 attempt 일치 여부와 무관하게 무조건 전환하고,
+	 * 재시도 가능으로 표시해 다음 기동 복구가 다시 집어갈 수 있게 한다. RUNNING이 아니면
+	 * (이미 완료·취소됨) 조용히 무시한다.
+	 */
+	public void markOrphaned(String reason) {
+		if (status != JobStatus.RUNNING) {
+			return;
+		}
+		this.status = JobStatus.FAILED;
+		this.failureReason = truncate(reason);
+		this.retryable = true;
+	}
+
 	/** 실패한 재시도 가능 작업을 다시 대기 상태로 되돌린다. */
 	public void resetForRetry() {
 		if (status != JobStatus.FAILED || !retryable) {
