@@ -7,6 +7,7 @@ import java.util.List;
 public record SensoryTestResponse(
 		Long testId,
 		Long candidateId,
+		Long candidateVersionId,
 		String planDetail,
 		SensoryTestStatus status,
 		List<SensoryTestResultResponse> results,

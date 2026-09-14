@@ -19,11 +19,13 @@ import com.perfumeryaicore.domain.evidence.entity.SensoryTestStatus;
 import com.perfumeryaicore.domain.evidence.repository.SensoryTestRepository;
 import com.perfumeryaicore.domain.evidence.repository.SensoryTestResultRepository;
 import com.perfumeryaicore.domain.evidence.service.SensoryTestService;
+import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.prediction.dto.response.PredictionResponse;
 import com.perfumeryaicore.domain.prediction.dto.response.PredictionResponse.HumanValidation;
 import com.perfumeryaicore.domain.prediction.service.PredictionService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
+import com.perfumeryaicore.global.common.CandidateStatus;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -55,10 +57,25 @@ class SensoryTestServiceTest {
 		when(candidateService.getProjectId(CANDIDATE_ID, 1L)).thenReturn(PROJECT_ID);
 		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(ProjectRole.SENSORY_SCIENTIST);
 		when(accessGuard.hasRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(true);
+		// BE-053: plan()이 실험 확정 상태와 현재 버전을 확인한다.
+		when(candidateService.get(CANDIDATE_ID, 1L)).thenReturn(
+				new CandidateResponse(CANDIDATE_ID, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null));
+		when(candidateService.getCurrentVersionId(CANDIDATE_ID, 1L)).thenReturn(1200L);
+		when(predictionService.get(CANDIDATE_ID, 1L)).thenReturn(prediction(87.4));
+	}
+
+	private static PredictionResponse prediction(Double similarity) {
+		return new PredictionResponse(
+				CANDIDATE_ID, 1200L, "prototype_ready", similarity, "kind", 0.7, 64.0, true, "kind", "s", "s",
+				new HumanValidation(false, null, null, null, null, null), null, null, null);
 	}
 
 	private SensoryTest test(long id, Long candidateId) {
-		SensoryTest test = SensoryTest.plan(candidateId, "5인 패널 삼각 검사", 1L);
+		return test(id, candidateId, 87.4);
+	}
+
+	private SensoryTest test(long id, Long candidateId, Double predictedSimilarityAtPlan) {
+		SensoryTest test = SensoryTest.plan(candidateId, 1200L, predictedSimilarityAtPlan, "5인 패널 삼각 검사", 1L);
 		ReflectionTestUtils.setField(test, "id", id);
 		return test;
 	}
@@ -76,6 +93,19 @@ class SensoryTestServiceTest {
 		assertThat(response.testId()).isEqualTo(10L);
 		assertThat(response.status()).isEqualTo(SensoryTestStatus.PLANNED);
 		assertThat(response.published()).isFalse();
+		assertThat(response.candidateVersionId()).isEqualTo(1200L);
+	}
+
+	/** BE-053: 실험 후보로 확정되지 않은(UNDER_REVIEW) 후보는 관능 계획을 세울 수 없다. */
+	@Test
+	void plan_is_rejected_when_the_candidate_is_not_confirmed_for_experiment() {
+		when(candidateService.get(CANDIDATE_ID, 1L)).thenReturn(
+				new CandidateResponse(CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, null));
+
+		assertThatThrownBy(() -> service.plan(CANDIDATE_ID, 1L, new SensoryTestPlanRequest("계획")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SENSORY_TEST_CANDIDATE_NOT_CONFIRMED);
+		verify(testRepository, never()).save(any());
 	}
 
 	/** BE-006: SENSORY_SCIENTIST가 아니면 계획을 등록할 수 없다. */
@@ -128,16 +158,16 @@ class SensoryTestServiceTest {
 		assertThat(test.getStatus()).isEqualTo(SensoryTestStatus.PLANNED);
 	}
 
+	/** BE-057: 상세 조회는 조회 시점의 "현재" 예측이 아니라 계획 시점에 고정한 값을 돌려준다. */
 	@Test
-	void detail_adds_current_prediction_similarity_as_reference() {
-		SensoryTest test = test(10L, CANDIDATE_ID);
+	void detail_returns_the_prediction_fixed_at_plan_time_not_the_current_one() {
+		SensoryTest test = test(10L, CANDIDATE_ID, 87.4);
 		test.markCompleted();
 		test.publish(1L);
 		when(testRepository.findById(10L)).thenReturn(Optional.of(test));
 		when(resultRepository.findBySensoryTestIdOrderByCreatedAtDesc(10L)).thenReturn(List.of());
-		when(predictionService.get(CANDIDATE_ID, 1L)).thenReturn(new PredictionResponse(
-				900L, 1200L, "prototype_ready", 87.4, "kind", 0.7, 64.0, true, "kind", "s", "s",
-				new HumanValidation(false, null, null, null, null, null), null, null, null));
+		// 이후 후보의 "현재" 예측이 바뀌었더라도(예: 새 버전) 이 관능 결과의 참고값은 그대로여야 한다.
+		when(predictionService.get(CANDIDATE_ID, 1L)).thenReturn(prediction(40.0));
 
 		SensoryTestDetailResponse detail = service.getDetail(10L, 1L);
 

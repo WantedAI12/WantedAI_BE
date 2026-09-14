@@ -40,6 +40,20 @@ public class SensoryTest extends BaseTimeEntity {
 	@Column(name = "candidate_id", nullable = false)
 	private Long candidateId;
 
+	/**
+	 * 계획 시점에 고정한 후보 버전(BE-053). 이후 후보가 새 버전을 얻어도 이 관능 계획·결과는
+	 * 이 버전의 배합을 검증한 것으로 남는다 — 조회 때마다 "현재" 버전을 따라가지 않는다.
+	 */
+	@Column(name = "candidate_version_id", nullable = false)
+	private Long candidateVersionId;
+
+	/**
+	 * 계획 시점에 고정한 성능 프록시 예측값(BE-057). {@code getDetail}에서 이 값을 그대로
+	 * 돌려준다 — 조회 시점의 "현재" 예측을 다시 읽지 않는다. 계획 당시 예측이 없었으면 null.
+	 */
+	@Column(name = "predicted_similarity_score_at_plan")
+	private Double predictedSimilarityScoreAtPlan;
+
 	@Lob
 	@Column(name = "plan_detail")
 	private String planDetail;
@@ -60,16 +74,20 @@ public class SensoryTest extends BaseTimeEntity {
 	@Column(name = "published_at")
 	private LocalDateTime publishedAt;
 
-	private SensoryTest(Long candidateId, String planDetail, Long plannedBy) {
+	private SensoryTest(Long candidateId, Long candidateVersionId, Double predictedSimilarityScoreAtPlan,
+			String planDetail, Long plannedBy) {
 		this.candidateId = candidateId;
+		this.candidateVersionId = candidateVersionId;
+		this.predictedSimilarityScoreAtPlan = predictedSimilarityScoreAtPlan;
 		this.planDetail = planDetail;
 		this.plannedBy = plannedBy;
 		this.status = SensoryTestStatus.PLANNED;
 		this.published = false;
 	}
 
-	public static SensoryTest plan(Long candidateId, String planDetail, Long plannedBy) {
-		return new SensoryTest(candidateId, planDetail, plannedBy);
+	public static SensoryTest plan(Long candidateId, Long candidateVersionId, Double predictedSimilarityScoreAtPlan,
+			String planDetail, Long plannedBy) {
+		return new SensoryTest(candidateId, candidateVersionId, predictedSimilarityScoreAtPlan, planDetail, plannedBy);
 	}
 
 	public void markCompleted() {
