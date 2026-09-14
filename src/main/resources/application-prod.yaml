@@ -1,0 +1,20 @@
+# 운영 프로필(BE-082). SPRING_PROFILES_ACTIVE=prod로 켠다.
+#
+# application.yaml의 개발 편의용 기본값(JWT_SECRET 하드코딩 문자열, DB_USERNAME/PASSWORD=root)을
+# 여기서는 일부러 두지 않는다 - 실제 값이 환경변수로 주어지지 않으면 이 자리표시자를 못 채워
+# Spring이 기동 자체를 실패시킨다("Could not resolve placeholder"). 운영에 개발용 비밀값이나
+# 기본 DB 계정이 그대로 켜지는 사고를 막기 위한 의도적인 설계다.
+spring:
+  datasource:
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      # 운영에서는 스키마를 암묵적으로 바꾸지 않는다 - 엔티티와 실제 스키마가 어긋나면
+      # (마이그레이션을 안 돌렸다는 뜻이므로) 조용히 ALTER 하는 대신 기동을 실패시킨다.
+      # 이 검증이 유효하려면 별도 DB 마이그레이션 도구(BE-083, 미도입)로 스키마를 관리해야 한다.
+      ddl-auto: validate
+    show-sql: false
+
+jwt:
+  secret: ${JWT_SECRET}
