@@ -7,6 +7,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -34,6 +36,12 @@ public class Member extends BaseTimeEntity {
 	@Column(nullable = false, length = 50)
 	private String name;
 
+	@Column(name = "failed_login_attempts", nullable = false)
+	private int failedLoginAttempts;
+
+	@Column(name = "locked_until")
+	private LocalDateTime lockedUntil;
+
 	@Builder
 	private Member(String email, String passwordHash, String name) {
 		this.email = email;
@@ -47,5 +55,28 @@ public class Member extends BaseTimeEntity {
 
 	public void updatePassword(String passwordHash) {
 		this.passwordHash = passwordHash;
+	}
+
+	public boolean isLocked(LocalDateTime now) {
+		return lockedUntil != null && now.isBefore(lockedUntil);
+	}
+
+	/**
+	 * BE-087: 로그인 실패를 기록한다. 실패 횟수가 임계치에 도달하면 계정을 잠근다.
+	 * (잠금 중에 다시 실패해도 잠금 해제 시각은 뒤로 미루지 않는다 - 무한 잠금 연장 방지)
+	 */
+	public void recordFailedLogin(LocalDateTime now, int maxAttempts, Duration lockoutDuration) {
+		if (isLocked(now)) {
+			return;
+		}
+		this.failedLoginAttempts++;
+		if (this.failedLoginAttempts >= maxAttempts) {
+			this.lockedUntil = now.plus(lockoutDuration);
+		}
+	}
+
+	public void recordSuccessfulLogin() {
+		this.failedLoginAttempts = 0;
+		this.lockedUntil = null;
 	}
 }

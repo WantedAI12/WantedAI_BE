@@ -91,6 +91,26 @@ class AuthFlowTest {
 				.andExpect(jsonPath("$.error.code").value("REFRESH_TOKEN_REUSE_DETECTED"));
 	}
 
+	@Test
+	void account_is_locked_after_repeated_failed_logins_and_rejects_the_correct_password_too() throws Exception {
+		String email = randomEmail();
+		signup(email);
+
+		for (int i = 0; i < 5; i++) {
+			mockMvc.perform(post("/auth/login")
+							.contentType(MediaType.APPLICATION_JSON)
+							.content(loginBody(email, "wrong-password")))
+					.andExpect(status().isUnauthorized())
+					.andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
+		}
+
+		mockMvc.perform(post("/auth/login")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(loginBody(email, "password123")))
+				.andExpect(status().isLocked())
+				.andExpect(jsonPath("$.error.code").value("ACCOUNT_LOCKED"));
+	}
+
 	private JsonNode login(String email) throws Exception {
 		return perform(post("/auth/login")
 				.contentType(MediaType.APPLICATION_JSON)

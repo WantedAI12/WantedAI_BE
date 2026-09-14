@@ -12,6 +12,7 @@ import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.security.JwtProperties;
 import com.perfumeryaicore.global.security.JwtTokenProvider;
+import com.perfumeryaicore.global.security.LoginLockoutProperties;
 import com.perfumeryaicore.global.security.TokenHasher;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -41,6 +42,7 @@ public class AuthService {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final TokenHasher tokenHasher;
 	private final JwtProperties jwtProperties;
+	private final LoginLockoutProperties loginLockoutProperties;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	@Transactional
@@ -56,13 +58,21 @@ public class AuthService {
 		return MemberResponse.from(member);
 	}
 
-	@Transactional
+	@Transactional(noRollbackFor = BusinessException.class)
 	public TokenResponse login(LoginRequest request) {
 		Member member = memberRepository.findByEmail(request.email())
 				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
+
+		LocalDateTime now = LocalDateTime.now();
+		if (member.isLocked(now)) {
+			throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+		}
 		if (!passwordEncoder.matches(request.password(), member.getPasswordHash())) {
+			member.recordFailedLogin(now, loginLockoutProperties.maxAttempts(),
+					loginLockoutProperties.lockoutDuration());
 			throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
 		}
+		member.recordSuccessfulLogin();
 		return issueTokens(member.getId(), member.getEmail());
 	}
 
