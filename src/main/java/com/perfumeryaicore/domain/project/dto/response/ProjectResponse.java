@@ -2,6 +2,7 @@ package com.perfumeryaicore.domain.project.dto.response;
 
 import com.perfumeryaicore.domain.project.entity.Project;
 import com.perfumeryaicore.global.common.ProjectRole;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -13,6 +14,9 @@ public record ProjectResponse(
 		String description,
 		ProjectRole myRole,
 		long memberCount,
+		LocalDate startDate,
+		LocalDate dueDate,
+		Long assigneeMemberId,
 		LocalDateTime createdAt
 ) {
 
@@ -23,6 +27,9 @@ public record ProjectResponse(
 				project.getDescription(),
 				myRole,
 				memberCount,
+				project.getStartDate(),
+				project.getDueDate(),
+				project.getAssigneeMemberId(),
 				project.getCreatedAt());
 	}
 }

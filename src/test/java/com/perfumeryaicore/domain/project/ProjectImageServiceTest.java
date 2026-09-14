@@ -130,7 +130,7 @@ class ProjectImageServiceTest {
 	@Test
 	void attach_links_a_pending_asset_and_returns_a_presigned_url() {
 		ProjectImageAsset asset = withId(ProjectImageAsset.pending("key-1", "image/png", 10, UPLOADER_ID), 100L);
-		Project project = withId(Project.create("향수 프로젝트", null), PROJECT_ID);
+		Project project = withId(Project.create("향수 프로젝트", null, null, null), PROJECT_ID);
 		when(assetRepository.findById(100L)).thenReturn(Optional.of(asset));
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
 		when(s3FileStorage.presignedGetUrl("key-1", Duration.ofMinutes(15))).thenReturn("https://signed/key-1");
@@ -148,7 +148,7 @@ class ProjectImageServiceTest {
 		ProjectImageAsset oldAsset = withId(ProjectImageAsset.pending("old-key", "image/png", 10, UPLOADER_ID), 1L);
 		oldAsset.attachTo(PROJECT_ID);
 		ProjectImageAsset newAsset = withId(ProjectImageAsset.pending("new-key", "image/png", 10, UPLOADER_ID), 2L);
-		Project project = withId(Project.create("향수 프로젝트", null), PROJECT_ID);
+		Project project = withId(Project.create("향수 프로젝트", null, null, null), PROJECT_ID);
 		project.attachImage(1L);
 
 		when(assetRepository.findById(2L)).thenReturn(Optional.of(newAsset));
@@ -167,7 +167,7 @@ class ProjectImageServiceTest {
 	void attach_rejects_reusing_an_already_attached_asset() {
 		ProjectImageAsset asset = withId(ProjectImageAsset.pending("key", "image/png", 10, UPLOADER_ID), 100L);
 		asset.attachTo(20L);
-		Project project = withId(Project.create("향수 프로젝트", null), PROJECT_ID);
+		Project project = withId(Project.create("향수 프로젝트", null, null, null), PROJECT_ID);
 		when(assetRepository.findById(100L)).thenReturn(Optional.of(asset));
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
 
@@ -178,7 +178,7 @@ class ProjectImageServiceTest {
 
 	@Test
 	void get_without_an_attached_image_is_not_found() {
-		Project project = withId(Project.create("향수 프로젝트", null), PROJECT_ID);
+		Project project = withId(Project.create("향수 프로젝트", null, null, null), PROJECT_ID);
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
 
 		assertThatThrownBy(() -> service.get(PROJECT_ID, UPLOADER_ID))
@@ -190,7 +190,7 @@ class ProjectImageServiceTest {
 	void unlink_orphans_the_current_asset_and_clears_the_project() {
 		ProjectImageAsset asset = withId(ProjectImageAsset.pending("key", "image/png", 10, UPLOADER_ID), 100L);
 		asset.attachTo(PROJECT_ID);
-		Project project = withId(Project.create("향수 프로젝트", null), PROJECT_ID);
+		Project project = withId(Project.create("향수 프로젝트", null, null, null), PROJECT_ID);
 		project.attachImage(100L);
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
 		when(assetRepository.findById(100L)).thenReturn(Optional.of(asset));
