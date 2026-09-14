@@ -35,6 +35,7 @@ public class FragranceRequestService {
 
 	private final FragranceRequestRepository requestRepository;
 	private final ProjectAccessGuard accessGuard;
+	private final WorkChecklistService workChecklistService;
 
 	@Transactional
 	public FragranceRequestResponse create(Long projectId, Long memberId, CreateFragranceRequestRequest dto) {
@@ -55,6 +56,7 @@ public class FragranceRequestService {
 				dto.maxIngredientPricePerKg(),
 				dto.accords());
 		FragranceRequest saved = requestRepository.save(request);
+		workChecklistService.initialize(saved.getId());
 		log.info("[REQUEST] id={} project={} status={} by={}", saved.getId(), projectId, saved.getStatus(), memberId);
 		return FragranceRequestResponse.from(saved);
 	}
