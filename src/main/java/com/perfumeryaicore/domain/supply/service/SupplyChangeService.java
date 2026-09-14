@@ -11,6 +11,7 @@ import com.perfumeryaicore.domain.supply.dto.response.SupplyChangeResponse;
 import com.perfumeryaicore.domain.supply.dto.response.SupplyReviewDecisionResponse;
 import com.perfumeryaicore.domain.supply.entity.SupplyChange;
 import com.perfumeryaicore.domain.supply.entity.SupplyChangeAffectedCandidate;
+import com.perfumeryaicore.domain.supply.entity.SupplyChangeType;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecision;
 import com.perfumeryaicore.domain.supply.entity.SupplyReviewDecisionType;
 import com.perfumeryaicore.domain.supply.repository.SupplyChangeAffectedCandidateRepository;
@@ -52,6 +53,7 @@ public class SupplyChangeService {
 	@Transactional
 	public SupplyChangeResponse register(String ingredientId, Long memberId, RegisterSupplyChangeRequest dto) {
 		accessGuard.requireRole(dto.projectId(), memberId, ProjectRole.SUPPLIER, ProjectRole.FRAGRANCE_RND);
+		validatePriceConsistency(dto);
 
 		SupplyChange change = supplyChangeRepository.save(SupplyChange.create(
 				dto.projectId(), ingredientId, dto.changeType(),
@@ -109,6 +111,28 @@ public class SupplyChangeService {
 		return reviewDecisionRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId).stream()
 				.map(SupplyReviewDecisionResponse::from)
 				.toList();
+	}
+
+	/**
+	 * BE-070~080: PRICE_INCREASE/PRICE_DECREASE는 가격 필드가 실제로 그 방향과 맞는지 검증한다.
+	 * 그 외 유형은 가격 필드가 없어도 되므로 검사하지 않는다(원인·상세는 note로 남김).
+	 */
+	private void validatePriceConsistency(RegisterSupplyChangeRequest dto) {
+		boolean isPriceChange = dto.changeType() == SupplyChangeType.PRICE_INCREASE
+				|| dto.changeType() == SupplyChangeType.PRICE_DECREASE;
+		if (!isPriceChange) {
+			return;
+		}
+		if (dto.previousPricePerKg() == null || dto.newPricePerKg() == null) {
+			throw new BusinessException(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		}
+		boolean actuallyIncreased = dto.newPricePerKg() > dto.previousPricePerKg();
+		boolean directionMatches = dto.changeType() == SupplyChangeType.PRICE_INCREASE
+				? actuallyIncreased
+				: !actuallyIncreased && dto.newPricePerKg() < dto.previousPricePerKg();
+		if (!directionMatches) {
+			throw new BusinessException(ErrorCode.SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT);
+		}
 	}
 
 	/** 현재 버전에서 해당 원료를 쓰는, 폐기되지 않은 후보를 찾아 영향 후보로 저장한다. */
