@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -32,7 +33,10 @@ import lombok.NoArgsConstructor;
 		indexes = {
 				@Index(name = "idx_jobs_project_id", columnList = "project_id"),
 				@Index(name = "idx_jobs_status", columnList = "status")
-		}
+		},
+		uniqueConstraints = @UniqueConstraint(
+				name = "uq_jobs_idempotency",
+				columnNames = {"created_by", "job_type", "idempotency_key"})
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Job extends BaseTimeEntity {
@@ -89,6 +93,15 @@ public class Job extends BaseTimeEntity {
 	private Long createdBy;
 
 	/**
+	 * 같은 요청의 중복 제출을 막기 위한 클라이언트 지정 키(BE-046, 선택). 같은 {@code (createdBy,
+	 * jobType, idempotencyKey)} 조합으로 다시 들어오면 새 작업을 만들지 않고 기존 작업을 그대로
+	 * 반환한다({@link com.perfumeryaicore.domain.job.service.JobService#enqueue} 참고). 키가 없으면
+	 * {@code null} — 같은 회원·종류라도 여러 개의 null은 유니크 제약과 충돌하지 않는다.
+	 */
+	@Column(name = "idempotency_key", length = 200)
+	private String idempotencyKey;
+
+	/**
 	 * 낙관적 잠금(BE-043). 워커 두 개가 같은 PENDING 작업을 동시에 선점하거나, 재시도·취소·완료가
 	 * 서로 경합하면 먼저 커밋한 쪽만 성공하고 나머지는
 	 * {@link org.springframework.orm.ObjectOptimisticLockingFailureException}로 실패한다.
@@ -97,18 +110,24 @@ public class Job extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long version;
 
-	private Job(Long projectId, JobType jobType, Long createdBy, String inputPayload) {
+	private Job(Long projectId, JobType jobType, Long createdBy, String inputPayload, String idempotencyKey) {
 		this.projectId = projectId;
 		this.jobType = jobType;
 		this.createdBy = createdBy;
 		this.inputPayload = inputPayload;
+		this.idempotencyKey = idempotencyKey;
 		this.status = JobStatus.PENDING;
 		this.retryable = false;
 		this.attempt = 0;
 	}
 
 	public static Job pending(Long projectId, JobType jobType, Long createdBy, String inputPayload) {
-		return new Job(projectId, jobType, createdBy, inputPayload);
+		return new Job(projectId, jobType, createdBy, inputPayload, null);
+	}
+
+	public static Job pending(Long projectId, JobType jobType, Long createdBy, String inputPayload,
+			String idempotencyKey) {
+		return new Job(projectId, jobType, createdBy, inputPayload, idempotencyKey);
 	}
 
 	// --- 상태 전이 ---

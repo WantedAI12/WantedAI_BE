@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Formula")
@@ -35,13 +36,14 @@ public class CandidateController {
 	private final CandidateService candidateService;
 	private final CandidateMemoService candidateMemoService;
 
-	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기)")
+	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기, Idempotency-Key로 중복 제출 방지)")
 	@PostMapping("/requests/{requestId}/candidates")
 	public ResponseEntity<ApiResponse<JobResponse>> generate(
 			@AuthenticationPrincipal MemberPrincipal principal,
-			@PathVariable Long requestId) {
+			@PathVariable Long requestId,
+			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
-				.body(ApiResponse.success(generationService.enqueue(requestId, principal.id())));
+				.body(ApiResponse.success(generationService.enqueue(requestId, principal.id(), idempotencyKey)));
 	}
 
 	@Operation(summary = "해당 요청의 후보 목록")
