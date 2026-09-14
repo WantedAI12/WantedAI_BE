@@ -13,6 +13,7 @@ import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
 import com.perfumeryaicore.domain.request.repository.FragranceRequestRepository;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
+import com.perfumeryaicore.domain.request.service.WorkChecklistService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.ProjectRole;
@@ -28,7 +29,9 @@ class FragranceRequestServiceTest {
 
 	private final FragranceRequestRepository repository = mock(FragranceRequestRepository.class);
 	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
-	private final FragranceRequestService service = new FragranceRequestService(repository, accessGuard);
+	private final WorkChecklistService workChecklistService = mock(WorkChecklistService.class);
+	private final FragranceRequestService service =
+			new FragranceRequestService(repository, accessGuard, workChecklistService);
 
 	@BeforeEach
 	void memberIsProjectMember() {

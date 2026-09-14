@@ -2,9 +2,15 @@ package com.perfumeryaicore.domain.request.controller;
 
 import com.perfumeryaicore.domain.request.dto.request.CreateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateFragranceRequestRequest;
+import com.perfumeryaicore.domain.request.dto.request.UpdateWorkChecklistItemRequest;
 import com.perfumeryaicore.domain.request.dto.response.FragranceRequestResponse;
+import com.perfumeryaicore.domain.request.dto.response.ProjectProgressResponse;
+import com.perfumeryaicore.domain.request.dto.response.WorkChecklistItemResponse;
+import com.perfumeryaicore.domain.request.dto.response.WorkProgressResponse;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
+import com.perfumeryaicore.domain.request.entity.WorkChecklistItemType;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
+import com.perfumeryaicore.domain.request.service.WorkChecklistService;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class FragranceRequestController {
 
 	private final FragranceRequestService requestService;
+	private final WorkChecklistService workChecklistService;
 
 	@Operation(summary = "자연어 향 요청 제출 (구조화 결과 즉시 반환)")
 	@PostMapping("/projects/{projectId}/requests")
@@ -72,5 +79,40 @@ public class FragranceRequestController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long requestId) {
 		return ApiResponse.success(requestService.confirm(requestId, principal.id()));
+	}
+
+	@Operation(summary = "향수 작업 체크리스트 조회 (고정 6항목)")
+	@GetMapping("/requests/{requestId}/checklist")
+	public ApiResponse<List<WorkChecklistItemResponse>> checklist(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId) {
+		return ApiResponse.success(workChecklistService.list(requestId, principal.id()));
+	}
+
+	@Operation(summary = "체크리스트 항목 완료/해제 (동시 수정은 revision 낙관적 잠금으로 409)")
+	@PatchMapping("/requests/{requestId}/checklist/{itemType}")
+	public ApiResponse<WorkChecklistItemResponse> updateChecklistItem(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@PathVariable WorkChecklistItemType itemType,
+			@Valid @RequestBody UpdateWorkChecklistItemRequest request) {
+		return ApiResponse.success(workChecklistService.setCompleted(
+				requestId, principal.id(), itemType, request.completed(), request.expectedRevision()));
+	}
+
+	@Operation(summary = "향수 작업 단위 체크리스트 진행률")
+	@GetMapping("/requests/{requestId}/progress")
+	public ApiResponse<WorkProgressResponse> workProgress(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId) {
+		return ApiResponse.success(workChecklistService.workProgress(requestId, principal.id()));
+	}
+
+	@Operation(summary = "프로젝트 단위 체크리스트 진행률 (소속 작업 항목 수 가중 집계)")
+	@GetMapping("/projects/{projectId}/progress")
+	public ApiResponse<ProjectProgressResponse> projectProgress(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long projectId) {
+		return ApiResponse.success(workChecklistService.projectProgress(projectId, principal.id()));
 	}
 }

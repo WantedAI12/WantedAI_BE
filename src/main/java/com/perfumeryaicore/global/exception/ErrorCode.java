@@ -50,6 +50,8 @@ public enum ErrorCode {
 	REQUEST_EDIT_NOT_ALLOWED(HttpStatus.CONFLICT, "이미 확정된 요청은 수정할 수 없습니다."),
 	REQUEST_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "핵심 정보가 누락되거나 확정할 수 없는 상태입니다."),
 	REQUEST_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 요청으로는 후보를 생성할 수 없습니다."),
+	WORK_CHECKLIST_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "체크리스트 항목을 찾을 수 없습니다."),
+	WORK_CHECKLIST_ITEM_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 이 항목을 변경했습니다. 최신 상태를 다시 확인한 뒤 시도하세요."),
 
 	// 후보 조향식(Formula)
 	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "후보를 찾을 수 없습니다."),
