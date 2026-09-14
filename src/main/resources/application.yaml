@@ -23,6 +23,18 @@ server:
   servlet:
     context-path: /api/v1
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # 비로그인 상태에선 UP/DOWN만 보이고 DB 연결 등 상세 정보는 인증된 요청에만 노출한다
+      # - /actuator/health는 로드밸런서 등이 인증 없이 호출할 수 있어야 해서 SecurityConfig
+      # PUBLIC_PATHS에 넣었다(BE-089).
+      show-details: when-authorized
+
 jwt:
   secret: ${JWT_SECRET:local-dev-only-secret-change-me-to-a-long-random-value-at-least-32-bytes}
   access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}

@@ -26,11 +26,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableConfigurationProperties({JwtProperties.class, LoginLockoutProperties.class, CorsProperties.class})
 public class SecurityConfig {
 
+	// 로드밸런서 등이 인증 없이 호출해야 한다(BE-089). 상세 정보는 노출하지 않는다
+	// (management.endpoint.health.show-details가 별도로 막는다).
 	private static final String[] PUBLIC_PATHS = {
 			"/auth/**",
 			"/v3/api-docs/**",
 			"/swagger-ui/**",
 			"/swagger-ui.html",
+			"/actuator/health",
+			"/actuator/health/**",
 	};
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
