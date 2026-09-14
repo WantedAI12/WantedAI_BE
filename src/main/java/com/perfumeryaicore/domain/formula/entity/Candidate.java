@@ -12,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -60,16 +61,42 @@ public class Candidate extends BaseTimeEntity {
 	@Column(name = "job_id")
 	private Long jobId;
 
-	private Candidate(Long requestId, Long projectId, Long createdBy, Long jobId) {
+	/** BE-025: 이 후보가 다른 후보를 복제해 만들어졌다면 그 원본 후보 ID. 아니면 {@code null}. */
+	@Column(name = "derived_from_candidate_id")
+	private Long derivedFromCandidateId;
+
+	/** BE-025: 복제 시점에 복사한 원본 버전 ID. 아니면 {@code null}. */
+	@Column(name = "derived_from_version_id")
+	private Long derivedFromVersionId;
+
+	@Lob
+	@Column(name = "derivation_reason")
+	private String derivationReason;
+
+	private Candidate(Long requestId, Long projectId, Long createdBy, Long jobId,
+			Long derivedFromCandidateId, Long derivedFromVersionId, String derivationReason) {
 		this.requestId = requestId;
 		this.projectId = projectId;
 		this.createdBy = createdBy;
 		this.jobId = jobId;
+		this.derivedFromCandidateId = derivedFromCandidateId;
+		this.derivedFromVersionId = derivedFromVersionId;
+		this.derivationReason = derivationReason;
 		this.status = CandidateStatus.UNDER_REVIEW;
 	}
 
 	public static Candidate create(Long requestId, Long projectId, Long createdBy, Long jobId) {
-		return new Candidate(requestId, projectId, createdBy, jobId);
+		return new Candidate(requestId, projectId, createdBy, jobId, null, null, null);
+	}
+
+	/**
+	 * BE-025: 다른 후보의 현재 버전을 복제해 새 후보를 만든다. 승인·실험 확정·관능 검증 등
+	 * 원본의 검토 이력은 상속하지 않는다 - 항상 UNDER_REVIEW로 새 검토 사이클을 시작한다.
+	 */
+	public static Candidate duplicate(Long requestId, Long projectId, Long createdBy,
+			Long derivedFromCandidateId, Long derivedFromVersionId, String derivationReason) {
+		return new Candidate(requestId, projectId, createdBy, null,
+				derivedFromCandidateId, derivedFromVersionId, derivationReason);
 	}
 
 	public void attachVersion(Long versionId) {

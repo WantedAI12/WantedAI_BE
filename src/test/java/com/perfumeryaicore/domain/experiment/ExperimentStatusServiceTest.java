@@ -40,7 +40,7 @@ class ExperimentStatusServiceTest {
 		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.PERFUMER);
 		when(candidateService.get(500L, 1L))
-				.thenReturn(new CandidateResponse(500L, 5L, CandidateStatus.UNDER_REVIEW, null));
+				.thenReturn(new CandidateResponse(500L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
 	}
 
 	private ExperimentStatusLog logEntry(CandidateStatus status) {

@@ -4,11 +4,13 @@ import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
 import com.perfumeryaicore.domain.formula.entity.Candidate;
 import com.perfumeryaicore.domain.formula.entity.CandidateVersion;
+import com.perfumeryaicore.domain.formula.entity.CandidateVersionIngredient;
 import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.CandidateStatus;
+import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
@@ -24,6 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CandidateService {
+
+	/** SUPPLIER·AUDITOR는 후보를 복제할 수 없다(BE-004와 같은 원칙 - 새 후보 생성 행위). */
+	private static final ProjectRole[] DUPLICATE_ROLES = {
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+	};
 
 	private final CandidateRepository candidateRepository;
 	private final CandidateVersionRepository candidateVersionRepository;
@@ -90,6 +97,59 @@ public class CandidateService {
 		return candidate.getStatus();
 	}
 
+	/**
+	 * BE-025: 후보의 현재 버전(원료 구성 포함)을 통째로 복사해 새 후보를 만든다. 새 후보는
+	 * UNDER_REVIEW로 새로 시작하며 원본의 승인·실험 확정·관능 검증 이력을 상속하지 않는다.
+	 * AI를 호출하지 않는 순수 DB 복사다.
+	 */
+	@Transactional
+	public CandidateResponse duplicate(Long candidateId, Long memberId, String reason) {
+		Candidate source = getAccessibleCandidate(candidateId, memberId);
+		accessGuard.requireRole(source.getProjectId(), memberId, DUPLICATE_ROLES);
+		if (source.getCurrentVersionId() == null) {
+			throw new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
+		}
+		CandidateVersion sourceVersion = candidateVersionRepository.findById(source.getCurrentVersionId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));
+
+		Candidate duplicated = candidateRepository.save(Candidate.duplicate(
+				source.getRequestId(), source.getProjectId(), memberId,
+				source.getId(), sourceVersion.getId(), reason));
+
+		CandidateVersion newVersion = candidateVersionRepository.save(CandidateVersion.builder()
+				.candidateId(duplicated.getId())
+				.parentVersionId(null)
+				.cost(sourceVersion.getCost())
+				.generationRationale(sourceVersion.getGenerationRationale())
+				.aiProvider(sourceVersion.getAiProvider())
+				.aiGpuUsed(sourceVersion.getAiGpuUsed())
+				.aiResponseStatus(sourceVersion.getAiResponseStatus())
+				.aiLatencyMs(sourceVersion.getAiLatencyMs())
+				.rawResponse(sourceVersion.getRawResponse())
+				.createdBy(memberId)
+				.build());
+		duplicated.attachVersion(newVersion.getId());
+
+		List<CandidateVersionIngredient> copiedLines = ingredientRepository
+				.findByCandidateVersionId(sourceVersion.getId()).stream()
+				.map(line -> CandidateVersionIngredient.builder()
+						.candidateVersionId(newVersion.getId())
+						.ingredientExternalId(line.getIngredientExternalId())
+						.ingredientName(line.getIngredientName())
+						.pyramid(line.getPyramid())
+						.concentratePercent(line.getConcentratePercent())
+						.finishedProductPercent(line.getFinishedProductPercent())
+						.pricePerKg(line.getPricePerKg())
+						.availability(line.getAvailability())
+						.build())
+				.toList();
+		if (!copiedLines.isEmpty()) {
+			ingredientRepository.saveAll(copiedLines);
+		}
+
+		return toResponse(duplicated);
+	}
+
 	public CandidateVersionResponse version(Long versionId, Long memberId) {
 		CandidateVersion version = candidateVersionRepository.findById(versionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));
@@ -117,7 +177,9 @@ public class CandidateService {
 					.orElse(null);
 			current = version == null ? null : toVersionResponse(version);
 		}
-		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), candidate.getStatus(), current);
+		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), candidate.getStatus(), current,
+				candidate.getDerivedFromCandidateId(), candidate.getDerivedFromVersionId(),
+				candidate.getDerivationReason());
 	}
 
 	private CandidateVersionResponse toVersionResponse(CandidateVersion version) {

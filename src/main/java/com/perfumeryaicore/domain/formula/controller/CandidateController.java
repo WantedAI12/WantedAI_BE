@@ -1,5 +1,6 @@
 package com.perfumeryaicore.domain.formula.controller;
 
+import com.perfumeryaicore.domain.formula.dto.request.DuplicateCandidateRequest;
 import com.perfumeryaicore.domain.formula.dto.request.UpsertCandidateMemoRequest;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateMemoResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
@@ -60,6 +61,16 @@ public class CandidateController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long candidateId) {
 		return ApiResponse.success(candidateService.get(candidateId, principal.id()));
+	}
+
+	@Operation(summary = "후보 복제 (현재 버전을 새 후보로 복사, AI 호출 없음, PERFUMER/FRAGRANCE_RND/PRODUCT_BRAND)")
+	@PostMapping("/candidates/{candidateId}/duplicate")
+	public ResponseEntity<ApiResponse<CandidateResponse>> duplicate(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@Valid @RequestBody DuplicateCandidateRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(candidateService.duplicate(candidateId, principal.id(), request.reason())));
 	}
 
 	@Operation(summary = "버전 이력 목록")
