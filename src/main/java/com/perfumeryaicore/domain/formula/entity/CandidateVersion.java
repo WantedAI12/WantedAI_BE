@@ -65,10 +65,19 @@ public class CandidateVersion extends BaseTimeEntity {
 	@Column(name = "created_by", nullable = false)
 	private Long createdBy;
 
+	/**
+	 * BE-026: 이 버전이 과거 버전을 복원해 만들어졌다면 그 원본 버전 ID. 복원은 과거 레코드를
+	 * 수정하지 않고 항상 새 버전을 만든다 - v1 복원으로 만든 v3도 parentVersionId는 직전 버전
+	 * (v2)을 가리키고, restoredFromVersionId만 v1을 가리킨다. 이렇게 하면 v2 기록도 그대로
+	 * 남고 버전 체인이 끊기지 않는다.
+	 */
+	@Column(name = "restored_from_version_id")
+	private Long restoredFromVersionId;
+
 	@Builder
 	private CandidateVersion(Long candidateId, Long parentVersionId, Double cost, String generationRationale,
 			String aiProvider, Boolean aiGpuUsed, String aiResponseStatus, Long aiLatencyMs,
-			String rawResponse, Long createdBy) {
+			String rawResponse, Long createdBy, Long restoredFromVersionId) {
 		this.candidateId = candidateId;
 		this.parentVersionId = parentVersionId;
 		this.cost = cost;
@@ -79,5 +88,6 @@ public class CandidateVersion extends BaseTimeEntity {
 		this.aiLatencyMs = aiLatencyMs;
 		this.rawResponse = rawResponse;
 		this.createdBy = createdBy;
+		this.restoredFromVersionId = restoredFromVersionId;
 	}
 }

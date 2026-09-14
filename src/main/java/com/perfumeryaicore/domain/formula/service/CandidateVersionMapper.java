@@ -59,7 +59,8 @@ public class CandidateVersionMapper {
 				meta,
 				temporal,
 				version.getCreatedBy(),
-				version.getCreatedAt());
+				version.getCreatedAt(),
+				version.getRestoredFromVersionId());
 	}
 
 	private FormulaGenerationResponse tryParse(String rawResponse) {

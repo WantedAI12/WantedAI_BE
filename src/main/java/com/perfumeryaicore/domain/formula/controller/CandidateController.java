@@ -1,6 +1,7 @@
 package com.perfumeryaicore.domain.formula.controller;
 
 import com.perfumeryaicore.domain.formula.dto.request.DuplicateCandidateRequest;
+import com.perfumeryaicore.domain.formula.dto.request.RestoreCandidateVersionRequest;
 import com.perfumeryaicore.domain.formula.dto.request.UpsertCandidateMemoRequest;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateMemoResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
@@ -90,6 +91,16 @@ public class CandidateController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long candidateId) {
 		return ApiResponse.success(candidateService.versions(candidateId, principal.id()));
+	}
+
+	@Operation(summary = "과거 버전 복원 (새 버전으로 생성, 과거 기록 보존, 동시 수정 충돌 시 409)")
+	@PostMapping("/candidates/{candidateId}/versions/restore")
+	public ResponseEntity<ApiResponse<CandidateResponse>> restoreVersion(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@Valid @RequestBody RestoreCandidateVersionRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+				candidateService.restoreVersion(candidateId, principal.id(), request.versionId())));
 	}
 
 	@Operation(summary = "특정 버전 상세")

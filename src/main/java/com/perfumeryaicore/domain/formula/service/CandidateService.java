@@ -150,6 +150,63 @@ public class CandidateService {
 		return toResponse(duplicated);
 	}
 
+	/**
+	 * BE-026/027: 과거 버전을 복원한다. 과거 레코드를 수정하지 않고 항상 새 버전을 만들어
+	 * 붙인다 - v1을 복원해도 그 사이에 쌓인 v2 기록은 그대로 남고, 새로 만들어지는 버전은
+	 * v2 다음(parentVersionId=v2)으로 이어지며 원본은 restoredFromVersionId로 추적한다.
+	 * 과거 승인·실험 확정·관능 검증 상태는 새 버전에 자동으로 재활성화되지 않는다 -
+	 * {@link Candidate#status}는 그대로 두고 버전만 바뀐다.
+	 *
+	 * <p>{@link Candidate#version}(낙관적 잠금)이 동시 복원/편집 충돌을 막는다 - 같은 후보를
+	 * 동시에 복원하면 나중 커밋이 {@code ObjectOptimisticLockingFailureException}으로 실패하고
+	 * 호출자는 409로 처리해야 한다.
+	 */
+	@Transactional
+	public CandidateResponse restoreVersion(Long candidateId, Long memberId, Long targetVersionId) {
+		Candidate candidate = getAccessibleCandidate(candidateId, memberId);
+		accessGuard.requireRole(candidate.getProjectId(), memberId, DUPLICATE_ROLES);
+
+		CandidateVersion target = candidateVersionRepository.findById(targetVersionId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));
+		if (!target.getCandidateId().equals(candidateId)) {
+			throw new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
+		}
+
+		CandidateVersion restored = candidateVersionRepository.save(CandidateVersion.builder()
+				.candidateId(candidateId)
+				.parentVersionId(candidate.getCurrentVersionId())
+				.cost(target.getCost())
+				.generationRationale(target.getGenerationRationale())
+				.aiProvider(target.getAiProvider())
+				.aiGpuUsed(target.getAiGpuUsed())
+				.aiResponseStatus(target.getAiResponseStatus())
+				.aiLatencyMs(target.getAiLatencyMs())
+				.rawResponse(target.getRawResponse())
+				.createdBy(memberId)
+				.restoredFromVersionId(target.getId())
+				.build());
+		candidate.attachVersion(restored.getId());
+
+		List<CandidateVersionIngredient> copiedLines = ingredientRepository
+				.findByCandidateVersionId(target.getId()).stream()
+				.map(line -> CandidateVersionIngredient.builder()
+						.candidateVersionId(restored.getId())
+						.ingredientExternalId(line.getIngredientExternalId())
+						.ingredientName(line.getIngredientName())
+						.pyramid(line.getPyramid())
+						.concentratePercent(line.getConcentratePercent())
+						.finishedProductPercent(line.getFinishedProductPercent())
+						.pricePerKg(line.getPricePerKg())
+						.availability(line.getAvailability())
+						.build())
+				.toList();
+		if (!copiedLines.isEmpty()) {
+			ingredientRepository.saveAll(copiedLines);
+		}
+
+		return toResponse(candidate);
+	}
+
 	public CandidateVersionResponse version(Long versionId, Long memberId) {
 		CandidateVersion version = candidateVersionRepository.findById(versionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));

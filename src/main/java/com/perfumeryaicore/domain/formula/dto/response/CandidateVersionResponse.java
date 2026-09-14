@@ -18,7 +18,10 @@ public record CandidateVersionResponse(
 		GenerationMeta generationMeta,
 		Temporal temporal,
 		Long createdBy,
-		LocalDateTime createdAt
+		LocalDateTime createdAt,
+
+		/** BE-026: 이 버전이 과거 버전을 복원해 만들어졌다면 그 원본 버전 ID. 아니면 {@code null}. */
+		Long restoredFromVersionId
 ) {
 
 	public record IngredientLine(
