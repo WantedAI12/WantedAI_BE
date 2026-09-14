@@ -66,11 +66,19 @@ public class CandidateGenerationService {
 
 	/** 트리거 API에서 호출. 확정되지 않은 요청이면 작업을 만들지 않고 즉시 409. */
 	public JobResponse enqueue(Long requestId, Long memberId) {
+		return enqueue(requestId, memberId, null);
+	}
+
+	/**
+	 * @param idempotencyKey 있으면 중복 제출 방지(BE-046)에 쓴다 — 같은 회원·같은 요청으로 이미
+	 *                       만든 작업이 있으면 새로 만들지 않고 그 작업을 그대로 반환한다.
+	 */
+	public JobResponse enqueue(Long requestId, Long memberId, String idempotencyKey) {
 		FragranceRequest request = fragranceRequestService.getConfirmedRequest(requestId, memberId);
 		accessGuard.requireRole(request.getProjectId(), memberId, TRIGGER_ROLES);
 
 		Job job = jobService.enqueue(request.getProjectId(), JobType.CANDIDATE_GENERATION, memberId,
-				String.valueOf(requestId));
+				String.valueOf(requestId), idempotencyKey);
 		dispatch(job.getId(), requestId, memberId);
 		return jobService.get(job.getId(), memberId);
 	}

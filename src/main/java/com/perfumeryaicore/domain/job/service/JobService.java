@@ -11,6 +11,7 @@ import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,34 @@ public class JobService {
 	 */
 	@Transactional
 	public Job enqueue(Long projectId, JobType jobType, Long memberId, String inputPayload) {
-		Job job = jobRepository.save(Job.pending(projectId, jobType, memberId, inputPayload));
+		return enqueue(projectId, jobType, memberId, inputPayload, null);
+	}
+
+	/**
+	 * {@code idempotencyKey}가 있으면 중복 제출을 막는다(BE-046). 같은 회원·작업 종류·키로 이미
+	 * 만든 작업이 있으면: 입력이 같으면 새로 만들지 않고 그 작업을 그대로 반환하고(재시도/더블
+	 * 클릭에 안전), 입력이 다르면 같은 키를 다른 요청에 재사용한 것이므로 409로 거부한다.
+	 *
+	 * <p>반환된 기존 작업을 호출자가 다시 {@link JobExecutor#execute}에 넘겨도 안전하다 — 이미
+	 * PENDING이 아니면(RUNNING·SUCCEEDED 등) {@link #markRunning}이 그냥 -1을 돌려주고, 여전히
+	 * PENDING이면 낙관적 잠금(BE-043)이 중복 실행을 막는다.
+	 */
+	@Transactional
+	public Job enqueue(Long projectId, JobType jobType, Long memberId, String inputPayload, String idempotencyKey) {
+		if (idempotencyKey != null) {
+			Job existing = jobRepository
+					.findByCreatedByAndJobTypeAndIdempotencyKey(memberId, jobType, idempotencyKey)
+					.orElse(null);
+			if (existing != null) {
+				if (!Objects.equals(existing.getInputPayload(), inputPayload)) {
+					throw new BusinessException(ErrorCode.JOB_IDEMPOTENCY_KEY_CONFLICT);
+				}
+				log.info("[JOB] idempotency key hit id={} type={} key={} - returning existing job",
+						existing.getId(), jobType, idempotencyKey);
+				return existing;
+			}
+		}
+		Job job = jobRepository.save(Job.pending(projectId, jobType, memberId, inputPayload, idempotencyKey));
 		log.info("[JOB] id={} type={} PENDING project={} by={}", job.getId(), jobType, projectId, memberId);
 		return job;
 	}

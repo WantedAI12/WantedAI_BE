@@ -101,7 +101,7 @@ class CandidateGenerationServiceTest {
 	@Test
 	void enqueue_creates_job_and_dispatches_execution() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
-		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5")).thenReturn(jobWithId(77L));
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(jobWithId(77L));
 		JobResponse expected = new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING,
 				false, null, null, null, null);
 		when(jobService.get(77L, 1L)).thenReturn(expected);
@@ -112,11 +112,25 @@ class CandidateGenerationServiceTest {
 		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), any());
 	}
 
+	/** BE-046: Idempotency-Key가 있으면 jobService에 그대로 전달해 중복 제출을 막는다. */
+	@Test
+	void enqueue_passes_the_idempotency_key_through_to_job_service() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", "client-key-1"))
+				.thenReturn(jobWithId(77L));
+		when(jobService.get(77L, 1L)).thenReturn(
+				new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		service.enqueue(5L, 1L, "client-key-1");
+
+		verify(jobService).enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", "client-key-1");
+	}
+
 	@Test
 	void successful_generation_persists_candidate_and_reports_ai_call_start() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
 		Job job = jobWithId(77L);
-		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5")).thenReturn(job);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
 		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
 
 		FormulaGenerationRequest modalRequest = FormulaGenerationRequest.standard(
@@ -155,7 +169,7 @@ class CandidateGenerationServiceTest {
 	void no_safe_match_is_rejected_without_persisting() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
 		Job job = jobWithId(77L);
-		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5")).thenReturn(job);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
 		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
 
 		FormulaGenerationRequest modalRequest = FormulaGenerationRequest.standard(
@@ -198,7 +212,7 @@ class CandidateGenerationServiceTest {
 	void cancelled_before_persisting_is_rejected_without_saving_a_candidate() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
 		Job job = jobWithId(77L);
-		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5")).thenReturn(job);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
 		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
 
 		FormulaGenerationRequest modalRequest = FormulaGenerationRequest.standard(

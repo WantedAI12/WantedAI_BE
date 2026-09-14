@@ -45,6 +45,46 @@ class JobServiceTest {
 		return job;
 	}
 
+	/** BE-046: 같은 키·같은 입력으로 다시 enqueue하면 새로 만들지 않고 기존 작업을 그대로 반환한다. */
+	@Test
+	void enqueue_with_a_repeated_idempotency_key_and_the_same_input_returns_the_existing_job() {
+		Job existing = job(1L, JobStatus.PENDING, false);
+		when(jobRepository.findByCreatedByAndJobTypeAndIdempotencyKey(1L, JobType.CANDIDATE_GENERATION, "key-1"))
+				.thenReturn(Optional.of(existing));
+
+		Job result = service().enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "{\"requestId\":5}", "key-1");
+
+		assertThat(result).isSameAs(existing);
+		verify(jobRepository, never()).save(any());
+	}
+
+	/** BE-046: 같은 키인데 입력이 다르면 - 같은 키를 다른 요청에 재사용한 것이므로 409로 거부한다. */
+	@Test
+	void enqueue_with_a_repeated_idempotency_key_but_different_input_is_rejected() {
+		Job existing = job(1L, JobStatus.PENDING, false); // inputPayload = {"requestId":5}
+		when(jobRepository.findByCreatedByAndJobTypeAndIdempotencyKey(1L, JobType.CANDIDATE_GENERATION, "key-1"))
+				.thenReturn(Optional.of(existing));
+
+		assertThatThrownBy(() -> service().enqueue(
+				10L, JobType.CANDIDATE_GENERATION, 1L, "{\"requestId\":6}", "key-1"))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.JOB_IDEMPOTENCY_KEY_CONFLICT);
+		verify(jobRepository, never()).save(any());
+	}
+
+	/** BE-046: 처음 보는 키면 평소대로 새 작업을 만든다. */
+	@Test
+	void enqueue_with_a_new_idempotency_key_creates_a_new_job() {
+		when(jobRepository.findByCreatedByAndJobTypeAndIdempotencyKey(1L, JobType.CANDIDATE_GENERATION, "key-2"))
+				.thenReturn(Optional.empty());
+		when(jobRepository.save(any(Job.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		Job created = service().enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "{}", "key-2");
+
+		assertThat(created.getStatus()).isEqualTo(JobStatus.PENDING);
+		assertThat(created.getIdempotencyKey()).isEqualTo("key-2");
+	}
+
 	@Test
 	void enqueue_persists_pending_job() {
 		when(jobRepository.save(any(Job.class))).thenAnswer(inv -> inv.getArgument(0));
