@@ -170,4 +170,68 @@ class CandidateServiceTest {
 		assertThat(lineCaptor.getValue().get(0).getCandidateVersionId()).isEqualTo(400L);
 		assertThat(lineCaptor.getValue().get(0).getIngredientExternalId()).isEqualTo("bergamot_oil");
 	}
+
+	@Test
+	void restoreVersion_is_forbidden_for_a_role_without_write_access() {
+		Candidate candidate = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
+		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+		when(accessGuard.requireRole(PROJECT_ID, 2L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND,
+				ProjectRole.PRODUCT_BRAND)).thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
+
+		assertThatThrownBy(() -> service.restoreVersion(100L, 2L, 200L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(candidateVersionRepository, never()).save(any());
+	}
+
+	@Test
+	void restoreVersion_rejects_a_version_belonging_to_a_different_candidate() {
+		Candidate candidate = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
+		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
+		when(accessGuard.isMember(PROJECT_ID, 1L)).thenReturn(true);
+
+		CandidateVersion versionOfAnotherCandidate = withId(CandidateVersion.builder()
+				.candidateId(999L)
+				.createdBy(1L)
+				.build(), 200L);
+		when(candidateVersionRepository.findById(200L)).thenReturn(Optional.of(versionOfAnotherCandidate));
+
+		assertThatThrownBy(() -> service.restoreVersion(100L, 1L, 200L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
+	}
+
+	/**
+	 * v1 복원으로 만든 v3은 직전 버전(v2)을 parentVersionId로 잇고, restoredFromVersionId로만
+	 * v1을 가리킨다 - v2 기록 자체는 지우거나 건드리지 않는다(BE-026).
+	 */
+	@Test
+	void restoreVersion_creates_a_new_version_chained_after_the_current_one_not_overwriting_history() {
+		Candidate candidate = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
+		candidate.attachVersion(250L); // v2가 현재 버전
+		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
+		when(accessGuard.isMember(PROJECT_ID, 1L)).thenReturn(true);
+
+		CandidateVersion v1 = withId(CandidateVersion.builder()
+				.candidateId(100L)
+				.cost(10.0)
+				.rawResponse("{\"v\":1}")
+				.createdBy(1L)
+				.build(), 200L);
+		when(candidateVersionRepository.findById(200L)).thenReturn(Optional.of(v1));
+		when(ingredientRepository.findByCandidateVersionId(200L)).thenReturn(List.of());
+		when(candidateVersionRepository.save(any(CandidateVersion.class)))
+				.thenAnswer(inv -> withId(inv.getArgument(0, CandidateVersion.class), 300L));
+
+		service.restoreVersion(100L, 1L, 200L);
+
+		assertThat(candidate.getCurrentVersionId()).isEqualTo(300L);
+
+		ArgumentCaptor<CandidateVersion> captor = ArgumentCaptor.forClass(CandidateVersion.class);
+		verify(candidateVersionRepository).save(captor.capture());
+		assertThat(captor.getValue().getParentVersionId()).isEqualTo(250L); // v2 다음으로 이어짐
+		assertThat(captor.getValue().getRestoredFromVersionId()).isEqualTo(200L); // v1을 복원했음을 추적
+		assertThat(captor.getValue().getRawResponse()).isEqualTo("{\"v\":1}");
+	}
 }

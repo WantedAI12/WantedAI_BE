@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -72,6 +73,15 @@ public class Candidate extends BaseTimeEntity {
 	@Lob
 	@Column(name = "derivation_reason")
 	private String derivationReason;
+
+	/**
+	 * BE-027: currentVersionId 갱신(버전 복원·편집)의 동시 수정 충돌을 막는다. 같은 후보를
+	 * 읽은 두 사용자가 동시에 다른 버전으로 갱신을 시도하면 나중에 커밋하는 쪽이
+	 * {@link org.springframework.orm.ObjectOptimisticLockingFailureException}로 실패한다.
+	 */
+	@Version
+	@Column(name = "version")
+	private Long version;
 
 	private Candidate(Long requestId, Long projectId, Long createdBy, Long jobId,
 			Long derivedFromCandidateId, Long derivedFromVersionId, String derivationReason) {
