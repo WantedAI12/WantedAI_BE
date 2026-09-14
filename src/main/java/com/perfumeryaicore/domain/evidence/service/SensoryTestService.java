@@ -9,9 +9,11 @@ import com.perfumeryaicore.domain.evidence.entity.SensoryTest;
 import com.perfumeryaicore.domain.evidence.entity.SensoryTestResult;
 import com.perfumeryaicore.domain.evidence.repository.SensoryTestRepository;
 import com.perfumeryaicore.domain.evidence.repository.SensoryTestResultRepository;
+import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.prediction.service.PredictionService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
+import com.perfumeryaicore.global.common.CandidateStatus;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -50,13 +52,27 @@ public class SensoryTestService {
 	private final ProjectAccessGuard accessGuard;
 	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
+	/**
+	 * 실험 후보로 확정된 배합의 현재 버전과 그 시점의 예측값을 고정해 계획을 만든다(BE-053/057).
+	 * 확정 전 후보는 계획 대상이 아니다 — 아직 재검토·변경 가능성이 큰 배합을 검증 대상으로 굳히지
+	 * 않는다.
+	 */
 	@Transactional
 	public SensoryTestResponse plan(Long candidateId, Long memberId, SensoryTestPlanRequest dto) {
 		Long projectId = candidateService.getProjectId(candidateId, memberId);
 		accessGuard.requireRole(projectId, memberId, WRITE_ROLE);
+
+		CandidateResponse candidate = candidateService.get(candidateId, memberId);
+		if (candidate.status() == CandidateStatus.UNDER_REVIEW) {
+			throw new BusinessException(ErrorCode.SENSORY_TEST_CANDIDATE_NOT_CONFIRMED);
+		}
+		Long candidateVersionId = candidateService.getCurrentVersionId(candidateId, memberId);
+		Double predictedSimilarityAtPlan = predictionService.get(candidateId, memberId).similarityScore();
+
 		SensoryTest test = sensoryTestRepository.save(
-				SensoryTest.plan(candidateId, dto.planDetail(), memberId));
-		log.info("[EVIDENCE] sensory-test id={} planned candidate={} by={}", test.getId(), candidateId, memberId);
+				SensoryTest.plan(candidateId, candidateVersionId, predictedSimilarityAtPlan, dto.planDetail(), memberId));
+		log.info("[EVIDENCE] sensory-test id={} planned candidate={} version={} by={}",
+				test.getId(), candidateId, candidateVersionId, memberId);
 		return toResponse(test, List.of());
 	}
 
@@ -104,8 +120,9 @@ public class SensoryTestService {
 			}
 		}
 		SensoryTestResponse response = toResponse(test, resultsOf(testId));
-		Double predictedSimilarity = predictionService.get(test.getCandidateId(), memberId).similarityScore();
-		return new SensoryTestDetailResponse(response, predictedSimilarity);
+		// BE-057: 계획 시점에 고정한 값을 그대로 돌려준다 - 후보가 새 버전을 얻어도 이 관능
+		// 계획이 검증한 배합의 당시 예측값은 바뀌지 않는다(조회 시점의 "현재" 예측이 아니다).
+		return new SensoryTestDetailResponse(response, test.getPredictedSimilarityScoreAtPlan());
 	}
 
 	private SensoryTest getAccessibleTest(Long testId, Long memberId) {
@@ -123,8 +140,9 @@ public class SensoryTestService {
 
 	private SensoryTestResponse toResponse(SensoryTest test, List<SensoryTestResultResponse> results) {
 		return new SensoryTestResponse(
-				test.getId(), test.getCandidateId(), test.getPlanDetail(), test.getStatus(),
-				results, test.getCreatedAt(), test.isPublished(), test.getPublishedBy(), test.getPublishedAt());
+				test.getId(), test.getCandidateId(), test.getCandidateVersionId(), test.getPlanDetail(),
+				test.getStatus(), results, test.getCreatedAt(),
+				test.isPublished(), test.getPublishedBy(), test.getPublishedAt());
 	}
 
 	private SensoryTestResultResponse toResultResponse(SensoryTestResult result) {
