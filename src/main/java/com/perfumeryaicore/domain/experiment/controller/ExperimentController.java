@@ -60,7 +60,7 @@ public class ExperimentController {
 			@PathVariable Long candidateId,
 			@Valid @RequestBody ExperimentStatusChangeRequest request) {
 		return ApiResponse.success(
-				experimentStatusService.changeStatus(candidateId, principal.id(), request.status()));
+				experimentStatusService.changeStatus(candidateId, principal.id(), request.status(), request.reason()));
 	}
 
 	@Operation(summary = "현재 실험 상태 및 상태 변경 이력 조회")
