@@ -1,5 +1,7 @@
 package com.perfumeryaicore.domain.request.controller;
 
+import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
+import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
 import com.perfumeryaicore.domain.request.dto.request.CreateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateWorkChecklistItemRequest;
@@ -9,8 +11,11 @@ import com.perfumeryaicore.domain.request.dto.response.WorkChecklistItemResponse
 import com.perfumeryaicore.domain.request.dto.response.WorkProgressResponse;
 import com.perfumeryaicore.domain.request.entity.RequestStatus;
 import com.perfumeryaicore.domain.request.entity.WorkChecklistItemType;
+import com.perfumeryaicore.domain.request.service.BriefReviewService;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.domain.request.service.WorkChecklistService;
+import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
@@ -38,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class FragranceRequestController {
 
 	private final FragranceRequestService requestService;
+	private final BriefReviewService briefReviewService;
 	private final WorkChecklistService workChecklistService;
 
 	@Operation(summary = "자연어 향 요청 제출 (구조화 결과 즉시 반환)")
@@ -118,5 +124,24 @@ public class FragranceRequestController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long projectId) {
 		return ApiResponse.success(workChecklistService.projectProgress(projectId, principal.id()));
+	}
+
+	@Operation(summary = "AI 구조화 사전 검토 (v2) — 보완 질문이 있으면 status=needs_input과 questions로 반환")
+	@PostMapping("/requests/{requestId}/brief-review")
+	public ApiResponse<PrepareBriefResponse> reviewBrief(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@RequestBody(required = false) BriefReviewRequest request) {
+		BriefReviewRequest dto = request != null ? request : BriefReviewRequest.empty();
+		return ApiResponse.success(briefReviewService.prepare(requestId, principal.id(), dto));
+	}
+
+	@Operation(summary = "AI 사전 검토 보완 질문에 대한 답변 제출 (v2)")
+	@PostMapping("/requests/{requestId}/brief-review/clarify")
+	public ApiResponse<ClarifyBriefResponse> clarifyBrief(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@Valid @RequestBody BriefClarifyRequest request) {
+		return ApiResponse.success(briefReviewService.clarify(requestId, principal.id(), request));
 	}
 }

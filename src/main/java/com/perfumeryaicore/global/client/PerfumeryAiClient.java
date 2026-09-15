@@ -1,10 +1,14 @@
 package com.perfumeryaicore.global.client;
 
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
+import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
+import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
 import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
+import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
+import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -139,6 +143,46 @@ public class PerfumeryAiClient {
 			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 		}
 		return new PerfumeryAiResult<>(body, parsed, latency);
+	}
+
+	/**
+	 * 자연어 입력을 검토해 보완 질문(있으면) 또는 확정 검토 결과({@code review_id})를 받는다
+	 * - v2 연동 플로우의 진입점(BE 연동 답변 1단계). 같은 물리 컨테이너를 v1과 공유하므로
+	 * 동시성 게이트·레이트 리밋도 그대로 적용한다.
+	 */
+	public PerfumeryAiResult<PrepareBriefResponse> prepareBrief(
+			PrepareBriefRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("briefs-prepare", traceId, markStart, () -> webClient.post().uri("/v2/briefs/prepare")
+				.contentType(MediaType.APPLICATION_JSON)
+				.bodyValue(request)
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, PrepareBriefResponse.class), latency);
+	}
+
+	/** 보완 질문에 대한 답변을 보내 검토 결과를 갱신한다({@code prepareBrief}의 후속 단계). */
+	public PerfumeryAiResult<ClarifyBriefResponse> clarifyBrief(
+			ClarifyBriefRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("briefs-clarify", traceId, markStart, () -> webClient.post().uri("/v2/briefs/clarify")
+				.contentType(MediaType.APPLICATION_JSON)
+				.bodyValue(request)
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, ClarifyBriefResponse.class), latency);
 	}
 
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---
