@@ -4,6 +4,7 @@ import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
@@ -41,6 +42,11 @@ public class RegulatoryEvidenceService {
 
 	public EvidenceStatusResponse status(Long memberId) {
 		return perfumeryAiClient.evidenceStatus("evidence-status-" + memberId).parsed();
+	}
+
+	/** 지원 제품군·연산별 등록/가동 여부·모델 버전 - 로그인한 모든 회원에게 열린 런타임 참조 정보. */
+	public AiCapabilitiesResponse capabilities() {
+		return perfumeryAiClient.capabilities();
 	}
 
 	public EvidenceCoverageResponse coverage(Long memberId, Integer offset, Integer limit) {

@@ -3,6 +3,7 @@ package com.perfumeryaicore.global.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
@@ -356,5 +357,34 @@ class PerfumeryAiClientTest {
 		assertThat(result.parsed().isBlocked()).isTrue();
 		assertThat(result.parsed().blockers()).hasSize(1);
 		assertThat(result.parsed().blockers().get(0).ingredientId()).isEqualTo("linalyl_acetate");
+	}
+
+	@Test
+	void capabilities_success_parses_supported_product_codes() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"schema_version":"ai-capabilities-1",
+				 "supported_product_codes":["eau_de_parfum","body_wash"],
+				 "physical_property_evidence":{},"integration_contract":{},"scope":"x"}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+
+		AiCapabilitiesResponse result = client.capabilities();
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.supportedProductCodes()).containsExactly("eau_de_parfum", "body_wash");
+	}
+
+	@Test
+	void capabilities_does_not_consume_the_local_rate_limit_cap() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 1, 0),
+				respondWith(HttpStatus.OK, "{\"schema_version\":\"ai-capabilities-1\"}", calls));
+
+		client.catalogRaw("t1");
+		// catalogRaw already consumed the 1/min cap; capabilities must still succeed since it bypasses the gate.
+		AiCapabilitiesResponse result = client.capabilities();
+
+		assertThat(result.schemaVersion()).isEqualTo("ai-capabilities-1");
+		assertThat(calls.get()).isEqualTo(2);
 	}
 }

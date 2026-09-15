@@ -1,5 +1,6 @@
 package com.perfumeryaicore.global.client;
 
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
@@ -62,6 +63,17 @@ public class PerfumeryAiClient {
 	public PerfumeryAiClient(WebClient perfumeryAiWebClient, ModalAiProperties properties) {
 		this.webClient = perfumeryAiWebClient;
 		this.properties = properties;
+	}
+
+	/**
+	 * 지원 제품군·연산별 등록/가동 여부·모델 버전 정보. {@code /health}와 같은 이유로 게이트·레이트
+	 * 리밋 없이 호출한다 - 실제 조향 연산이 아니라 런타임 메타데이터 조회다.
+	 */
+	public AiCapabilitiesResponse capabilities() {
+		requireAuthToken("capabilities", "-");
+		String body = withRetry("capabilities", "-", () -> webClient.get().uri("/v1/ai/capabilities")
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return parse(body, AiCapabilitiesResponse.class);
 	}
 
 	/** 서버 상태·Wheel·registry 확인. 운영 헬스체크 용도(게이트·레이트 리밋 없음). */

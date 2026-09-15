@@ -15,6 +15,7 @@ import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
 import com.perfumeryaicore.domain.safety.service.RegulatoryEvidenceService;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
@@ -109,6 +110,20 @@ class RegulatoryEvidenceServiceTest {
 		assertThat(captor.getValue().targetRegion()).isEqualTo("EU");
 		assertThat(captor.getValue().productCategory()).isEqualTo("eau_de_parfum");
 		assertThat(captor.getValue().policy().get("finished_batch_mass_g").asDouble()).isEqualTo(1000.0);
+	}
+
+	@Test
+	void capabilities_delegates_to_the_ai_client() {
+		AiCapabilitiesResponse response = new AiCapabilitiesResponse(
+				"ai-capabilities-1", List.of("eau_de_parfum"), JSON.createObjectNode(), JSON.createObjectNode(),
+				JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(),
+				JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(),
+				JSON.createObjectNode(), JSON.createObjectNode(), "scope");
+		when(perfumeryAiClient.capabilities()).thenReturn(response);
+
+		AiCapabilitiesResponse result = service.capabilities();
+
+		assertThat(result.supportedProductCodes()).containsExactly("eau_de_parfum");
 	}
 
 	@Test
