@@ -1,5 +1,6 @@
 package com.perfumeryaicore.domain.request.controller;
 
+import com.perfumeryaicore.domain.request.dto.request.AssignWorkChecklistItemRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
 import com.perfumeryaicore.domain.request.dto.request.CreateFragranceRequestRequest;
@@ -108,6 +109,17 @@ public class FragranceRequestController {
 			@Valid @RequestBody UpdateWorkChecklistItemRequest request) {
 		return ApiResponse.success(workChecklistService.setCompleted(
 				requestId, principal.id(), itemType, request.completed(), request.expectedRevision()));
+	}
+
+	@Operation(summary = "체크리스트 항목 담당자 배정/해제 (assigneeId 없으면 해제, 완료 상태와 revision 공유)")
+	@PatchMapping("/requests/{requestId}/checklist/{itemType}/assignee")
+	public ApiResponse<WorkChecklistItemResponse> assignChecklistItem(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@PathVariable WorkChecklistItemType itemType,
+			@Valid @RequestBody AssignWorkChecklistItemRequest request) {
+		return ApiResponse.success(workChecklistService.assign(
+				requestId, principal.id(), itemType, request.assigneeId(), request.expectedRevision()));
 	}
 
 	@Operation(summary = "향수 작업 단위 체크리스트 진행률")
