@@ -21,6 +21,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 import org.springframework.util.StringUtils;
 
 /**
@@ -52,7 +53,7 @@ public class FragranceRequest extends BaseTimeEntity {
 	private Long createdBy;
 
 	@Lob
-	@Column(name = "raw_text", nullable = false)
+	@Column(name = "raw_text", nullable = false, length = Length.LONG32)
 	private String rawText;
 
 	@Enumerated(EnumType.STRING)

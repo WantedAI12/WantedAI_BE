@@ -3,3 +3,4 @@
 *.jar binary
 *.ttf binary
 *.otf binary
+/deploy/** text eol=lf

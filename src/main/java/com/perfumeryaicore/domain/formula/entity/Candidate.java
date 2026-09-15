@@ -18,6 +18,7 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 후보 조향식. AI 생성이 성공했을 때만 만들어진다(안전 제약을 만족하는 해가 없으면 저장하지 않음).
@@ -71,7 +72,7 @@ public class Candidate extends BaseTimeEntity {
 	private Long derivedFromVersionId;
 
 	@Lob
-	@Column(name = "derivation_reason")
+	@Column(name = "derivation_reason", length = Length.LONG32)
 	private String derivationReason;
 
 	/**

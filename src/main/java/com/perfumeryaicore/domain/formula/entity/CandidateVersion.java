@@ -13,6 +13,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 후보 조향식의 한 버전. 원료 구성은 {@link CandidateVersionIngredient}로 별도 저장한다.
@@ -42,7 +43,7 @@ public class CandidateVersion extends BaseTimeEntity {
 	private Double cost;
 
 	@Lob
-	@Column(name = "generation_rationale")
+	@Column(name = "generation_rationale", length = Length.LONG32)
 	private String generationRationale;
 
 	@Column(name = "ai_provider", length = 30)
@@ -59,7 +60,7 @@ public class CandidateVersion extends BaseTimeEntity {
 
 	/** 조향 AI 응답 원문(JSON). 근거·재현 목적. 인증 헤더 등 내부 정보는 포함하지 않는다. */
 	@Lob
-	@Column(name = "raw_response")
+	@Column(name = "raw_response", length = Length.LONG32)
 	private String rawResponse;
 
 	@Column(name = "created_by", nullable = false)

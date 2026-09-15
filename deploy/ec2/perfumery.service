@@ -1,0 +1,18 @@
+[Unit]
+Description=Perfumery API
+After=network-online.target mysqld.service
+Wants=network-online.target
+Requires=mysqld.service
+
+[Service]
+User=perfumery
+Group=perfumery
+WorkingDirectory=/opt/perfumery
+ExecStart=/opt/perfumery/run.sh
+Restart=on-failure
+RestartSec=10
+SuccessExitStatus=143
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
