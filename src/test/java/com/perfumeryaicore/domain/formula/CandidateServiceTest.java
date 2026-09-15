@@ -99,6 +99,34 @@ class CandidateServiceTest {
 				.containsExactly(100L);
 	}
 
+	/** BE-085 후속: 후보마다 버전/원료를 따로 조회하지 않고(N+1), 현재 버전 ID를 모아 한 번에 조회한다. */
+	@Test
+	void listByRequest_batches_version_and_ingredient_lookups_instead_of_querying_per_candidate() {
+		Candidate a = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
+		a.attachVersion(200L);
+		Candidate b = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 101L);
+		b.attachVersion(201L);
+		when(candidateRepository.findByRequestIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(a, b));
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+
+		CandidateVersion versionA = withId(CandidateVersion.builder().candidateId(100L).createdBy(1L).build(), 200L);
+		CandidateVersion versionB = withId(CandidateVersion.builder().candidateId(101L).createdBy(1L).build(), 201L);
+		when(candidateVersionRepository.findAllById(List.of(200L, 201L))).thenReturn(List.of(versionA, versionB));
+		CandidateVersionIngredient ingredientA = CandidateVersionIngredient.builder()
+				.candidateVersionId(200L).ingredientExternalId("bergamot_oil").build();
+		when(ingredientRepository.findByCandidateVersionIdIn(List.of(200L, 201L)))
+				.thenReturn(List.of(ingredientA));
+
+		service.listByRequest(1L, 2L);
+
+		verify(candidateVersionRepository).findAllById(List.of(200L, 201L));
+		verify(candidateVersionRepository, never()).findById(any());
+		verify(ingredientRepository).findByCandidateVersionIdIn(List.of(200L, 201L));
+		verify(ingredientRepository, never()).findByCandidateVersionId(any());
+		verify(versionMapper).toResponse(versionA, List.of(ingredientA));
+		verify(versionMapper).toResponse(versionB, List.of());
+	}
+
 	@Test
 	void duplicate_is_forbidden_for_a_role_without_write_access() {
 		Candidate source = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);

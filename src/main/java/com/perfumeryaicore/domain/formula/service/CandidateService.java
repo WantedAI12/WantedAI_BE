@@ -14,6 +14,10 @@ import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,11 +42,47 @@ public class CandidateService {
 	private final CandidateVersionMapper versionMapper;
 	private final ProjectAccessGuard accessGuard;
 
+	/**
+	 * 요청에 속한 후보 전체를 조회한다. 후보마다 버전·원료를 각각 조회하면(N+1) 후보 수만큼
+	 * 쿼리가 늘어나므로, 현재 버전 ID를 모아 한 번에 조회한다(BE-085 후속).
+	 */
 	public List<CandidateResponse> listByRequest(Long requestId, Long memberId) {
-		return candidateRepository.findByRequestIdOrderByCreatedAtDesc(requestId).stream()
+		List<Candidate> candidates = candidateRepository.findByRequestIdOrderByCreatedAtDesc(requestId).stream()
 				.filter(c -> accessGuard.isMember(c.getProjectId(), memberId))
-				.map(this::toResponse)
 				.toList();
+		if (candidates.isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> versionIds = candidates.stream()
+				.map(Candidate::getCurrentVersionId)
+				.filter(Objects::nonNull)
+				.toList();
+		Map<Long, CandidateVersion> versionsById = candidateVersionRepository.findAllById(versionIds).stream()
+				.collect(Collectors.toMap(CandidateVersion::getId, Function.identity()));
+		Map<Long, List<CandidateVersionIngredient>> ingredientsByVersionId = ingredientRepository
+				.findByCandidateVersionIdIn(versionIds).stream()
+				.collect(Collectors.groupingBy(CandidateVersionIngredient::getCandidateVersionId));
+
+		return candidates.stream()
+				.map(c -> toResponse(c, versionsById, ingredientsByVersionId))
+				.toList();
+	}
+
+	private CandidateResponse toResponse(Candidate candidate, Map<Long, CandidateVersion> versionsById,
+			Map<Long, List<CandidateVersionIngredient>> ingredientsByVersionId) {
+		CandidateVersionResponse current = null;
+		if (candidate.getCurrentVersionId() != null) {
+			CandidateVersion version = versionsById.get(candidate.getCurrentVersionId());
+			if (version != null) {
+				List<CandidateVersionIngredient> ingredients =
+						ingredientsByVersionId.getOrDefault(version.getId(), List.of());
+				current = versionMapper.toResponse(version, ingredients);
+			}
+		}
+		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), candidate.getStatus(), current,
+				candidate.getDerivedFromCandidateId(), candidate.getDerivedFromVersionId(),
+				candidate.getDerivationReason());
 	}
 
 	public CandidateResponse get(Long candidateId, Long memberId) {
