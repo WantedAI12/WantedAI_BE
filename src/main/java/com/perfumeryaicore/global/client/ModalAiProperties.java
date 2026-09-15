@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param baseUrl           Modal 배포 기본 주소
  * @param authToken         Modal Proxy Token 전체 문자열({@code wk-<id>.ws-<secret>}). 비어 있으면 호출 시 설정 오류로 처리
  * @param connectTimeout    연결 제한 시간 (일반 웹 요청 수준, 약 10초)
- * @param responseTimeout   전체 응답 대기 시간 (Modal 콜드 스타트 + 조향식 계산 고려, 최소 130초)
+ * @param responseTimeout   전체 응답 대기 시간 (AI 개발팀 확인: 추론 큐 대기 110초 + Modal 함수 타임아웃 300초, 기본 305초)
  * @param requestsPerMinute 분당 호출 상한 (컨테이너 기준 30회)
  * @param maxRetries        일시 오류(429/5xx/타임아웃) 시 최대 재시도 횟수
  */
