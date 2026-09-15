@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 증거 보고서. 후보·현재 버전·안전 평가·예측·실험 이력·관능 검증을 한데 모은 JSON 번들({@code reportData})과
@@ -49,7 +50,7 @@ public class EvidenceReport extends BaseTimeEntity {
 	private JobStatus status;
 
 	@Lob
-	@Column(name = "report_data")
+	@Column(name = "report_data", length = Length.LONG32)
 	private String reportData;
 
 	/** S3 오브젝트 키. URL이 아니다 — 버킷이 비공개라 조회 시점마다 서명 URL을 새로 만든다. */

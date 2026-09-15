@@ -17,6 +17,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 후보에 딸린 메모 한 건({@link CandidateMemoType}당 후보에 최대 1건). 원본 브리프({@code FragranceRequest})나
@@ -51,7 +52,7 @@ public class CandidateMemo extends BaseTimeEntity {
 	private CandidateMemoType memoType;
 
 	@Lob
-	@Column(nullable = false)
+	@Column(nullable = false, length = Length.LONG32)
 	private String content;
 
 	/** 마지막으로 저장했을 때 후보의 현재 버전. 표시용 컨텍스트일 뿐, 버전 데이터 자체는 바꾸지 않는다. */

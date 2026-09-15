@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 원료 마스터(BE-062). 조향 AI가 원료 목록 API를 주지 않아, 지금까지는
@@ -54,11 +55,11 @@ public class IngredientMaster extends BaseTimeEntity {
 	private String supplierName;
 
 	@Lob
-	@Column(name = "safety_notes")
+	@Column(name = "safety_notes", length = Length.LONG32)
 	private String safetyNotes;
 
 	@Lob
-	@Column(name = "regulatory_notes")
+	@Column(name = "regulatory_notes", length = Length.LONG32)
 	private String regulatoryNotes;
 
 	@Column(name = "registered_by", nullable = false)

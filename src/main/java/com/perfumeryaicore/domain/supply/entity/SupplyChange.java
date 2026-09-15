@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 원료 가격/공급 조건 변경 이벤트.
@@ -67,11 +68,11 @@ public class SupplyChange extends BaseTimeEntity {
 	private String changedField;
 
 	@Lob
-	@Column(name = "previous_value")
+	@Column(name = "previous_value", length = Length.LONG32)
 	private String previousValue;
 
 	@Lob
-	@Column(name = "new_value")
+	@Column(name = "new_value", length = Length.LONG32)
 	private String newValue;
 
 	/**
@@ -82,7 +83,7 @@ public class SupplyChange extends BaseTimeEntity {
 	private String changeSourceId;
 
 	@Lob
-	@Column(name = "note")
+	@Column(name = "note", length = Length.LONG32)
 	private String note;
 
 	@Enumerated(EnumType.STRING)

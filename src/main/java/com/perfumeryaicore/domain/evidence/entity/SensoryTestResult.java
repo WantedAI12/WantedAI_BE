@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 블라인드 관능 검증 결과 한 건. {@code resultData}는 패널·측정 방식이 표준화되어 있지 않아
@@ -35,7 +36,7 @@ public class SensoryTestResult extends BaseTimeEntity {
 	private Long sensoryTestId;
 
 	@Lob
-	@Column(name = "result_data")
+	@Column(name = "result_data", length = Length.LONG32)
 	private String resultData;
 
 	@Column(name = "correlation_with_prediction")
@@ -55,7 +56,7 @@ public class SensoryTestResult extends BaseTimeEntity {
 	private Double scaleMax;
 
 	@Lob
-	@Column(name = "missing_reason")
+	@Column(name = "missing_reason", length = Length.LONG32)
 	private String missingReason;
 
 	/**

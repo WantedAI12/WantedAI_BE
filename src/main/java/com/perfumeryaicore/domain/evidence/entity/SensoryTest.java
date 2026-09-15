@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 독립 블라인드 관능 검증 계획. 결과가 처음 등록되면 {@link SensoryTestStatus#COMPLETED}로 바뀐다.
@@ -55,7 +56,7 @@ public class SensoryTest extends BaseTimeEntity {
 	private Double predictedSimilarityScoreAtPlan;
 
 	@Lob
-	@Column(name = "plan_detail")
+	@Column(name = "plan_detail", length = Length.LONG32)
 	private String planDetail;
 
 	/** BE-054: 시험 프로토콜 버전. 프로토콜이 바뀌어도 과거 계획이 어떤 기준으로 진행됐는지 추적한다. */

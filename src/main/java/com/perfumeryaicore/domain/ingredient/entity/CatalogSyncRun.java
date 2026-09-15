@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 조향 AI {@code GET /v1/catalog} 스냅샷 한 번의 동기화 결과.
@@ -50,7 +51,7 @@ public class CatalogSyncRun extends BaseTimeEntity {
 
 	/** {@code /v1/catalog} 응답 원문(JSON). 값을 가공하지 않고 그대로 보관한다. */
 	@Lob
-	@Column(name = "raw_snapshot")
+	@Column(name = "raw_snapshot", length = Length.LONG32)
 	private String rawSnapshot;
 
 	/** 스냅샷에서 뽑은 대표 통계 (없으면 null). */
