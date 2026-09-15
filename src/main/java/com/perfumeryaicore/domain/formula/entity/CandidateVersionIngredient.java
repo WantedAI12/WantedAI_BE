@@ -14,8 +14,9 @@ import lombok.NoArgsConstructor;
 
 /**
  * 후보 버전을 구성하는 원료 한 줄. 조향 AI 응답의 원료 식별자는 문자열이라(예: {@code dihydromyrcenol})
- * {@code ingredient} 도메인의 로컬 미러가 아직 없는 지금은 그대로 저장한다.
- * (ingredient 도메인 구현 시 내부 원료 ID와 매핑 예정 — 문서 델타 반영 대상)
+ * 그대로 저장한다. {@code ingredientExternalId}는 BE-062의
+ * {@link com.perfumeryaicore.domain.ingredient.entity.IngredientMaster#getExternalId}와 같은 값 공간을
+ * 쓰지만, 도메인 간 직접 참조를 두지 않는 원칙(ID/DTO로만 연결)에 따라 FK로 묶지는 않는다.
  */
 @Entity
 @Getter
