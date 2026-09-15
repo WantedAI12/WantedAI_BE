@@ -33,4 +33,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 	@Query("update RefreshToken rt set rt.revokedAt = :now "
 			+ "where rt.memberId = :memberId and rt.revokedAt is null")
 	int revokeAllByMemberId(@Param("memberId") Long memberId, @Param("now") LocalDateTime now);
+
+	/** 만료된 지 오래된 토큰을 정리한다(BE-107) - 폐기 여부와 무관하게 {@code cutoff} 이전에 만료된 행 전부. */
+	@Modifying(clearAutomatically = true)
+	@Query("delete from RefreshToken rt where rt.expiresAt < :cutoff")
+	int deleteByExpiresAtBefore(@Param("cutoff") LocalDateTime cutoff);
 }
