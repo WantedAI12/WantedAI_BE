@@ -63,6 +63,8 @@ public enum ErrorCode {
 	SAFETY_EVALUATION_MISSING(HttpStatus.CONFLICT, "안전 평가 결과가 없어 승인할 수 없습니다."),
 	SAFETY_EVALUATION_NOT_PASSED(HttpStatus.CONFLICT, "안전 평가를 통과하지 못한 버전은 승인할 수 없습니다."),
 	CANDIDATE_MEMO_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 이 메모를 저장했습니다. 최신 내용을 다시 불러온 뒤 다시 시도하세요."),
+	CANDIDATE_REVISE_PREPARE_NOT_READY(HttpStatus.CONFLICT, "자연어 수정에 필요한 정보가 부족해 후보 요청을 먼저 보완해야 합니다."),
+	CANDIDATE_REVISE_NO_DIAGNOSTIC_RESULT(HttpStatus.CONFLICT, "진단 재평가 결과가 없어 자연어 수정을 진행할 수 없습니다."),
 
 	// 증거·관능검증(Evidence)
 	SENSORY_TEST_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 계획을 찾을 수 없습니다."),

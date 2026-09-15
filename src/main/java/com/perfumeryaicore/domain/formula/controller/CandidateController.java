@@ -2,17 +2,20 @@ package com.perfumeryaicore.domain.formula.controller;
 
 import com.perfumeryaicore.domain.formula.dto.request.DuplicateCandidateRequest;
 import com.perfumeryaicore.domain.formula.dto.request.RestoreCandidateVersionRequest;
+import com.perfumeryaicore.domain.formula.dto.request.ReviseCandidateInstructionRequest;
 import com.perfumeryaicore.domain.formula.dto.request.UpsertCandidateMemoRequest;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateMemoResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
 import com.perfumeryaicore.domain.formula.dto.response.GenerationRejectionResponse;
 import com.perfumeryaicore.domain.formula.entity.CandidateMemoType;
+import com.perfumeryaicore.domain.formula.service.CandidateDiagnosticReviseService;
 import com.perfumeryaicore.domain.formula.service.CandidateGenerationService;
 import com.perfumeryaicore.domain.formula.service.CandidateMemoService;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.formula.service.GenerationRejectionService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,6 +43,7 @@ public class CandidateController {
 	private final CandidateService candidateService;
 	private final CandidateMemoService candidateMemoService;
 	private final GenerationRejectionService generationRejectionService;
+	private final CandidateDiagnosticReviseService candidateDiagnosticReviseService;
 
 	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기, Idempotency-Key로 중복 제출 방지)")
 	@PostMapping("/requests/{requestId}/candidates")
@@ -127,5 +131,16 @@ public class CandidateController {
 			@PathVariable CandidateMemoType memoType,
 			@Valid @RequestBody UpsertCandidateMemoRequest request) {
 		return ApiResponse.success(candidateMemoService.upsert(candidateId, principal.id(), memoType, request));
+	}
+
+	@Operation(summary = "후보 현재 배합 자연어 수정 검토 (v2, BE-102) — 새 후보를 저장·승인하지 않으며 "
+			+ "next_operation을 따라 재확인해야 한다. 근거 등록 여부와 무관하게 동작한다")
+	@PostMapping("/candidates/{candidateId}/diagnostic-revise")
+	public ApiResponse<ReviseCandidateResponse> reviseDiagnostic(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@Valid @RequestBody ReviseCandidateInstructionRequest request) {
+		return ApiResponse.success(
+				candidateDiagnosticReviseService.revise(candidateId, principal.id(), request.instruction()));
 	}
 }

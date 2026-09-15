@@ -8,6 +8,7 @@ import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.ReviseCandidateApiRequest;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
+import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
@@ -58,9 +59,11 @@ public class BriefReviewService {
 		JsonNode evidencePolicy = buildEvidencePolicy(
 				dto.finishedBatchMassG(), dto.maximumLeadTimeDays(), dto.maximumPurchaseCostUsd());
 
-		var result = perfumeryAiClient.prepareBrief(
-				PrepareBriefRequest.of(requestNode, evidencePolicy, dto.isDiagnosticOnly()),
-				"request-" + requestId, null);
+		PrepareBriefRequest aiRequest = dto.lines() == null || dto.lines().isEmpty()
+				? PrepareBriefRequest.of(requestNode, evidencePolicy, dto.isDiagnosticOnly())
+				: PrepareBriefRequest.of(
+						requestNode, evidencePolicy, jsonMapper.valueToTree(dto.lines()), dto.isDiagnosticOnly());
+		var result = perfumeryAiClient.prepareBrief(aiRequest, "request-" + requestId, null);
 		log.info("[BRIEF-REVIEW] request={} status={} reviewId={} diagnosticOnly={} by={}",
 				requestId, result.parsed().status(), result.parsed().reviewId(), dto.isDiagnosticOnly(), memberId);
 		return result.parsed();
@@ -90,8 +93,14 @@ public class BriefReviewService {
 	 * <p>결과는 정식 승인 후보가 아니므로 {@link com.perfumeryaicore.domain.formula.entity.Candidate}로
 	 * 저장하지 않고 그대로 반환한다 - {@link EvaluationResponse#isDiagnostic()}과
 	 * {@code diagnosticCandidates[].recommendationAllowed}를 호출부(화면)가 반드시 확인해야 한다.
+	 *
+	 * <p>{@link PerfumeryAiResult#rawJson()}까지 그대로 반환한다 - {@code compareCandidates}/
+	 * {@code reviseCandidate}에 이 결과를 다시 넣으려면 원문 바이트가 그대로 보존돼야 한다
+	 * (Modal이 평가 원문의 무결성을 해시로 검증한다, README 참고). 타입 모델을 거쳐 재직렬화하면
+	 * 우리가 매핑하지 않은 필드가 사라져 무결성 검증에서 거부될 수 있다.
 	 */
-	public EvaluationResponse evaluateDiagnostic(Long requestId, Long memberId, EvaluateDiagnosticRequest dto) {
+	public PerfumeryAiResult<EvaluationResponse> evaluateDiagnostic(
+			Long requestId, Long memberId, EvaluateDiagnosticRequest dto) {
 		FragranceRequest request = requestService.getAccessibleRequest(requestId, memberId);
 		JsonNode requestNode = buildRequestNode(request);
 		JsonNode evidencePolicy = buildEvidencePolicy(
@@ -104,11 +113,15 @@ public class BriefReviewService {
 				requestId, dto.confirmedReviewId(), result.parsed().status(),
 				result.parsed().diagnosticCandidates() == null ? 0 : result.parsed().diagnosticCandidates().size(),
 				memberId);
-		return result.parsed();
+		return result;
 	}
 
-	/** {@link #evaluateDiagnostic}와 같은 제약, 고정 배합({@code lines})을 유지한 채 재평가한다. */
-	public EvaluationResponse reassessDiagnostic(Long requestId, Long memberId, ReassessDiagnosticRequest dto) {
+	/**
+	 * {@link #evaluateDiagnostic}와 같은 제약·원문 보존 이유, 고정 배합({@code lines})을 유지한
+	 * 채 재평가한다.
+	 */
+	public PerfumeryAiResult<EvaluationResponse> reassessDiagnostic(
+			Long requestId, Long memberId, ReassessDiagnosticRequest dto) {
 		FragranceRequest request = requestService.getAccessibleRequest(requestId, memberId);
 		JsonNode requestNode = buildRequestNode(request);
 		JsonNode evidencePolicy = buildEvidencePolicy(
@@ -121,7 +134,7 @@ public class BriefReviewService {
 				requestId, dto.confirmedReviewId(), result.parsed().status(),
 				result.parsed().diagnosticCandidates() == null ? 0 : result.parsed().diagnosticCandidates().size(),
 				memberId);
-		return result.parsed();
+		return result;
 	}
 
 	/**
@@ -152,6 +165,13 @@ public class BriefReviewService {
 		return result.parsed();
 	}
 
+	/**
+	 * Modal {@code FormulaRequest} 스키마의 자체 기본값(180.0 USD/kg) - {@link FragranceRequest}에는
+	 * 아직 이 값을 담을 필드가 없어(문서 델타 반영 대상) 매번 이 기본값을 채운다. 비워서 보내면
+	 * v2 prepare가 매번 {@code needs_input}으로 이 필드를 되물어 진행이 막힌다(AI 확인).
+	 */
+	private static final double DEFAULT_MAX_FORMULA_COST_PER_KG_USD = 180.0;
+
 	/** BE 저장 요청을 v2 {@code request.formula} 스키마로 변환한다 - v1 {@code FormulaRequestMapper}와 같은 필드 매핑. */
 	private JsonNode buildRequestNode(FragranceRequest request) {
 		ObjectNode formula = jsonMapper.createObjectNode();
@@ -159,6 +179,7 @@ public class BriefReviewService {
 		putIfPresent(formula, "max_risk_tier", request.getRiskTier());
 		putIfPresent(formula, "product_concentration_percent", request.getUsageConcentrationPercent());
 		putIfPresent(formula, "max_ingredient_price_per_kg", request.getMaxIngredientPricePerKg());
+		formula.put("max_formula_cost_per_kg", DEFAULT_MAX_FORMULA_COST_PER_KG_USD);
 		putIfPresent(formula, "max_ingredients", request.getMaxIngredientCount());
 		TargetRegion region = request.getTargetRegion();
 		if (region != null) {

@@ -171,7 +171,7 @@ public class FragranceRequestController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long requestId,
 			@Valid @RequestBody EvaluateDiagnosticRequest request) {
-		return ApiResponse.success(briefReviewService.evaluateDiagnostic(requestId, principal.id(), request));
+		return ApiResponse.success(briefReviewService.evaluateDiagnostic(requestId, principal.id(), request).parsed());
 	}
 
 	@Operation(summary = "진단 전용 고정 배합 재평가 (v2) — evaluate와 같은 제약, lines로 고정 배합을 지정한다")
@@ -180,7 +180,7 @@ public class FragranceRequestController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long requestId,
 			@Valid @RequestBody ReassessDiagnosticRequest request) {
-		return ApiResponse.success(briefReviewService.reassessDiagnostic(requestId, principal.id(), request));
+		return ApiResponse.success(briefReviewService.reassessDiagnostic(requestId, principal.id(), request).parsed());
 	}
 
 	@Operation(summary = "저장 후보 스냅샷 비교 (v2, 2~10개) — diagnostic-evaluate/reassess가 반환한 값을 그대로 넣는다")

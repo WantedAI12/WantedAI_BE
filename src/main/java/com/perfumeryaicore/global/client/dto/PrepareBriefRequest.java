@@ -38,4 +38,10 @@ public record PrepareBriefRequest(
 	public static PrepareBriefRequest of(JsonNode request, JsonNode evidencePolicy, boolean diagnosticOnly) {
 		return new PrepareBriefRequest(request, evidencePolicy, null, null, diagnosticOnly);
 	}
+
+	/** 고정 배합을 리뷰하는 reassess 진행 순서 1단계용 - {@code lines}는 이후 reassess에 넣을 것과 같아야 한다. */
+	public static PrepareBriefRequest of(
+			JsonNode request, JsonNode evidencePolicy, JsonNode lines, boolean diagnosticOnly) {
+		return new PrepareBriefRequest(request, evidencePolicy, lines, null, diagnosticOnly);
+	}
 }
