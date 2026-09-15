@@ -58,6 +58,28 @@ public class SensoryTest extends BaseTimeEntity {
 	@Column(name = "plan_detail")
 	private String planDetail;
 
+	/** BE-054: 시험 프로토콜 버전. 프로토콜이 바뀌어도 과거 계획이 어떤 기준으로 진행됐는지 추적한다. */
+	@Column(name = "protocol_version", length = 50)
+	private String protocolVersion;
+
+	/**
+	 * BE-054: 평가자에게 보이는 블라인드 시료 코드(예: {@code S-14}). 실제 후보/버전과의 대응은
+	 * candidateId/candidateVersionId 필드로 이미 저장되어 있지만, 이 코드 자체는 평가자가 보는
+	 * 화면에 노출해도 되는 값이다 - 대응표 자체(코드 ↔ 실제 처방)를 숨기는 것은 별도 권한 문제.
+	 */
+	@Column(name = "sample_code", length = 50)
+	private String sampleCode;
+
+	@Column(name = "batch_lot", length = 50)
+	private String batchLot;
+
+	@Column(name = "panel_size")
+	private Integer panelSize;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "blind_level", length = 20)
+	private BlindLevel blindLevel;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private SensoryTestStatus status;
@@ -75,19 +97,27 @@ public class SensoryTest extends BaseTimeEntity {
 	private LocalDateTime publishedAt;
 
 	private SensoryTest(Long candidateId, Long candidateVersionId, Double predictedSimilarityScoreAtPlan,
-			String planDetail, Long plannedBy) {
+			String planDetail, String protocolVersion, String sampleCode, String batchLot,
+			Integer panelSize, BlindLevel blindLevel, Long plannedBy) {
 		this.candidateId = candidateId;
 		this.candidateVersionId = candidateVersionId;
 		this.predictedSimilarityScoreAtPlan = predictedSimilarityScoreAtPlan;
 		this.planDetail = planDetail;
+		this.protocolVersion = protocolVersion;
+		this.sampleCode = sampleCode;
+		this.batchLot = batchLot;
+		this.panelSize = panelSize;
+		this.blindLevel = blindLevel;
 		this.plannedBy = plannedBy;
 		this.status = SensoryTestStatus.PLANNED;
 		this.published = false;
 	}
 
 	public static SensoryTest plan(Long candidateId, Long candidateVersionId, Double predictedSimilarityScoreAtPlan,
-			String planDetail, Long plannedBy) {
-		return new SensoryTest(candidateId, candidateVersionId, predictedSimilarityScoreAtPlan, planDetail, plannedBy);
+			String planDetail, String protocolVersion, String sampleCode, String batchLot,
+			Integer panelSize, BlindLevel blindLevel, Long plannedBy) {
+		return new SensoryTest(candidateId, candidateVersionId, predictedSimilarityScoreAtPlan, planDetail,
+				protocolVersion, sampleCode, batchLot, panelSize, blindLevel, plannedBy);
 	}
 
 	public void markCompleted() {

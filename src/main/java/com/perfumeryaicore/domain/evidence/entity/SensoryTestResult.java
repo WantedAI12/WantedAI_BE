@@ -41,19 +41,52 @@ public class SensoryTestResult extends BaseTimeEntity {
 	@Column(name = "correlation_with_prediction")
 	private Double correlationWithPrediction;
 
+	/** BE-055: 평가자 익명 식별자(예: {@code P07}). 실제 회원 ID가 아니다 - 블라인드를 깨지 않는다. */
+	@Column(name = "panelist_identifier", length = 50)
+	private String panelistIdentifier;
+
+	@Column(name = "timepoint_minutes")
+	private Integer timepointMinutes;
+
+	@Column(name = "scale_min")
+	private Double scaleMin;
+
+	@Column(name = "scale_max")
+	private Double scaleMax;
+
+	@Lob
+	@Column(name = "missing_reason")
+	private String missingReason;
+
+	/**
+	 * BE-055: 이 결과가 이전 결과를 수정한 것이면 그 원본 ID. 수정은 원본 레코드를 고치는 대신
+	 * 항상 새 행을 만든다 - 원본은 그대로 남고 어떤 값이 어떻게 바뀌었는지 추적할 수 있다.
+	 */
+	@Column(name = "supersedes_result_id")
+	private Long supersedesResultId;
+
 	@Column(name = "recorded_by", nullable = false)
 	private Long recordedBy;
 
 	private SensoryTestResult(Long sensoryTestId, String resultData, Double correlationWithPrediction,
-			Long recordedBy) {
+			String panelistIdentifier, Integer timepointMinutes, Double scaleMin, Double scaleMax,
+			String missingReason, Long supersedesResultId, Long recordedBy) {
 		this.sensoryTestId = sensoryTestId;
 		this.resultData = resultData;
 		this.correlationWithPrediction = correlationWithPrediction;
+		this.panelistIdentifier = panelistIdentifier;
+		this.timepointMinutes = timepointMinutes;
+		this.scaleMin = scaleMin;
+		this.scaleMax = scaleMax;
+		this.missingReason = missingReason;
+		this.supersedesResultId = supersedesResultId;
 		this.recordedBy = recordedBy;
 	}
 
 	public static SensoryTestResult record(Long sensoryTestId, String resultData,
-			Double correlationWithPrediction, Long recordedBy) {
-		return new SensoryTestResult(sensoryTestId, resultData, correlationWithPrediction, recordedBy);
+			Double correlationWithPrediction, String panelistIdentifier, Integer timepointMinutes,
+			Double scaleMin, Double scaleMax, String missingReason, Long supersedesResultId, Long recordedBy) {
+		return new SensoryTestResult(sensoryTestId, resultData, correlationWithPrediction, panelistIdentifier,
+				timepointMinutes, scaleMin, scaleMax, missingReason, supersedesResultId, recordedBy);
 	}
 }
