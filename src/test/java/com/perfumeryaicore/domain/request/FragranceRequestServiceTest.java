@@ -136,17 +136,38 @@ class FragranceRequestServiceTest {
 
 	@Test
 	void list_filters_by_status_when_given() {
-		when(repository.findByProjectIdAndStatusOrderByCreatedAtDesc(10L, RequestStatus.CONFIRMED))
-				.thenReturn(List.of());
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		when(repository.findByProjectIdAndStatusOrderByCreatedAtDesc(10L, RequestStatus.CONFIRMED, pageable))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of()));
 
-		assertThat(service.list(10L, 1L, RequestStatus.CONFIRMED)).isEmpty();
+		assertThat(service.list(10L, 1L, RequestStatus.CONFIRMED, pageable).content()).isEmpty();
 	}
 
 	@Test
 	void list_is_denied_for_a_non_member() {
-		assertThatThrownBy(() -> service.list(10L, 999L, null))
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		assertThatThrownBy(() -> service.list(10L, 999L, null, pageable))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.REQUEST_ACCESS_DENIED);
+	}
+
+	/** BE-085: 상태 필터 없이 조회하면 전체 프로젝트 요청을 페이지 단위로 조회하고, 메타데이터를 그대로 돌려준다. */
+	@Test
+	void list_without_a_status_filter_returns_page_metadata_from_the_repository() {
+		var pageable = org.springframework.data.domain.PageRequest.of(1, 2);
+		FragranceRequest a = FragranceRequest.create(10L, 1L, "raw-a");
+		FragranceRequest b = FragranceRequest.create(10L, 1L, "raw-b");
+		var page = new org.springframework.data.domain.PageImpl<>(
+				List.of(a, b), pageable, 5);
+		when(repository.findByProjectIdOrderByCreatedAtDesc(10L, pageable)).thenReturn(page);
+
+		var result = service.list(10L, 1L, null, pageable);
+
+		assertThat(result.content()).hasSize(2);
+		assertThat(result.page()).isEqualTo(1);
+		assertThat(result.totalElements()).isEqualTo(5);
+		assertThat(result.totalPages()).isEqualTo(3);
+		assertThat(result.hasNext()).isTrue();
 	}
 
 	@Test

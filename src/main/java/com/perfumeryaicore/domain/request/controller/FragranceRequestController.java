@@ -12,12 +12,15 @@ import com.perfumeryaicore.domain.request.entity.WorkChecklistItemType;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.domain.request.service.WorkChecklistService;
 import com.perfumeryaicore.global.response.ApiResponse;
+import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -47,13 +50,14 @@ public class FragranceRequestController {
 				.body(ApiResponse.success(requestService.create(projectId, principal.id(), request)));
 	}
 
-	@Operation(summary = "요청 목록 조회 (상태별 필터)")
+	@Operation(summary = "요청 목록 조회 (상태별 필터, 페이지네이션)")
 	@GetMapping("/projects/{projectId}/requests")
-	public ApiResponse<List<FragranceRequestResponse>> list(
+	public ApiResponse<PageResponse<FragranceRequestResponse>> list(
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long projectId,
-			@RequestParam(required = false) RequestStatus status) {
-		return ApiResponse.success(requestService.list(projectId, principal.id(), status));
+			@RequestParam(required = false) RequestStatus status,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(requestService.list(projectId, principal.id(), status, pageable));
 	}
 
 	@Operation(summary = "구조화 결과/누락 항목/상태 조회")

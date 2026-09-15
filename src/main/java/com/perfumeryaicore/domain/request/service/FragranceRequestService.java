@@ -10,9 +10,11 @@ import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
+import com.perfumeryaicore.global.response.PageResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,14 +63,16 @@ public class FragranceRequestService {
 		return FragranceRequestResponse.from(saved);
 	}
 
-	public List<FragranceRequestResponse> list(Long projectId, Long memberId, RequestStatus status) {
+	/** 프로젝트에 요청이 계속 쌓이므로 페이지네이션한다(BE-085). */
+	public PageResponse<FragranceRequestResponse> list(
+			Long projectId, Long memberId, RequestStatus status, Pageable pageable) {
 		if (!accessGuard.isMember(projectId, memberId)) {
 			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
 		}
-		List<FragranceRequest> rows = (status == null)
-				? requestRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
-				: requestRepository.findByProjectIdAndStatusOrderByCreatedAtDesc(projectId, status);
-		return rows.stream().map(FragranceRequestResponse::from).toList();
+		var page = (status == null)
+				? requestRepository.findByProjectIdOrderByCreatedAtDesc(projectId, pageable)
+				: requestRepository.findByProjectIdAndStatusOrderByCreatedAtDesc(projectId, status, pageable);
+		return PageResponse.of(page.map(FragranceRequestResponse::from));
 	}
 
 	public FragranceRequestResponse get(Long requestId, Long memberId) {

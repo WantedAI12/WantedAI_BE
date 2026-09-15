@@ -13,12 +13,15 @@ import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.service.ProjectImageService;
 import com.perfumeryaicore.domain.project.service.ProjectService;
 import com.perfumeryaicore.global.response.ApiResponse;
+import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -115,10 +118,11 @@ public class ProjectController {
 
 	@Operation(summary = "멤버 추가·역할 변경·제거 감사 이력 조회 (ORG_ADMIN / PROJECT_MANAGER)")
 	@GetMapping("/projects/{projectId}/members/audit-log")
-	public ApiResponse<List<ProjectMemberAuditLogResponse>> memberAuditLog(
+	public ApiResponse<PageResponse<ProjectMemberAuditLogResponse>> memberAuditLog(
 			@AuthenticationPrincipal MemberPrincipal principal,
-			@PathVariable Long projectId) {
-		return ApiResponse.success(projectService.memberAuditLog(projectId, principal.id()));
+			@PathVariable Long projectId,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(projectService.memberAuditLog(projectId, principal.id(), pageable));
 	}
 
 	@Operation(summary = "프로젝트 이미지 임시 업로드 — 아직 어떤 프로젝트에도 연결되지 않은 자산 ID를 반환")
