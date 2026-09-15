@@ -9,8 +9,10 @@ import static org.mockito.Mockito.when;
 
 import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
+import com.perfumeryaicore.domain.request.dto.request.CompareCandidatesApiRequest;
 import com.perfumeryaicore.domain.request.dto.request.EvaluateDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
+import com.perfumeryaicore.domain.request.dto.request.ReviseCandidateApiRequest;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.Intensity;
 import com.perfumeryaicore.domain.request.entity.Longevity;
@@ -18,12 +20,17 @@ import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesResponse;
 import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
 import com.perfumeryaicore.global.client.dto.EvaluationResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceLine;
 import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
 import com.perfumeryaicore.global.client.dto.ReassessFormulaRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateResponse;
+import com.perfumeryaicore.global.client.dto.StoredCandidate;
 import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.TargetRegion;
 import java.util.List;
@@ -204,5 +211,48 @@ class BriefReviewServiceTest {
 		assertThat(captor.getValue().lines()).hasSize(1);
 		assertThat(captor.getValue().lines().get(0).ingredientId()).isEqualTo("linalyl_acetate");
 		assertThat(captor.getValue().diagnosticOnly()).isTrue();
+	}
+
+	private StoredCandidate storedCandidate(String candidateId, String backendVersionId) {
+		return new StoredCandidate(JSON.createObjectNode(), candidateId, backendVersionId);
+	}
+
+	/** compare/revise는 근거 등록 없이도 되므로(AI 확인), BE는 저장 없이 그대로 중계만 한다. */
+	@Test
+	void compareCandidates_forwards_the_snapshots_without_storing_them() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<CompareCandidatesRequest> captor = ArgumentCaptor.forClass(CompareCandidatesRequest.class);
+		CompareCandidatesResponse response = new CompareCandidatesResponse(
+				"rd-comparison-2", List.of(JSON.createObjectNode()), List.of(), true, false, 0, false,
+				JSON.createObjectNode(), "result-9");
+		when(perfumeryAiClient.compareCandidates(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", response, 10L));
+
+		StoredCandidate a = storedCandidate("a".repeat(64), "diagnostic-a");
+		StoredCandidate b = storedCandidate("b".repeat(64), "diagnostic-b");
+		CompareCandidatesApiRequest dto = new CompareCandidatesApiRequest(List.of(a, b));
+		CompareCandidatesResponse result = service.compareCandidates(REQUEST_ID, MEMBER_ID, dto);
+
+		assertThat(result.resultId()).isEqualTo("result-9");
+		assertThat(captor.getValue().candidates()).containsExactly(a, b);
+	}
+
+	@Test
+	void reviseCandidate_forwards_the_source_snapshot_and_instruction() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<ReviseCandidateRequest> captor = ArgumentCaptor.forClass(ReviseCandidateRequest.class);
+		ReviseCandidateResponse response = new ReviseCandidateResponse(
+				"rd-revision-2", JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(),
+				1, true, "evaluate", "scope");
+		when(perfumeryAiClient.reviseCandidate(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", response, 10L));
+
+		StoredCandidate source = storedCandidate("c".repeat(64), "diagnostic-c");
+		ReviseCandidateApiRequest dto = new ReviseCandidateApiRequest(source, "우디 느낌을 더 강하게");
+		ReviseCandidateResponse result = service.reviseCandidate(REQUEST_ID, MEMBER_ID, dto);
+
+		assertThat(result.nextOperation()).isEqualTo("evaluate");
+		assertThat(captor.getValue().source()).isEqualTo(source);
+		assertThat(captor.getValue().instruction()).isEqualTo("우디 느낌을 더 강하게");
 	}
 }
