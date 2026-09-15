@@ -54,13 +54,29 @@ class IngredientMasterServiceTest {
 	void a_never_used_ingredient_can_still_be_found_by_search() {
 		IngredientMaster entity = IngredientMaster.register(
 				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L);
-		when(repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase("Iso", "Iso"))
-				.thenReturn(List.of(entity));
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		when(repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase("Iso", "Iso", pageable))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(entity)));
 
-		List<IngredientMasterResponse> results = service.search("Iso");
+		var results = service.search("Iso", pageable);
 
-		assertThat(results).hasSize(1);
-		assertThat(results.get(0).externalId()).isEqualTo("iso_e_super");
+		assertThat(results.content()).hasSize(1);
+		assertThat(results.content().get(0).externalId()).isEqualTo("iso_e_super");
+	}
+
+	/** BE-085 후속: 검색어 없이 호출하면 등록된 마스터 전체를 페이지 단위로 조회한다. */
+	@Test
+	void searching_without_a_query_paginates_the_full_registered_master_list() {
+		IngredientMaster entity = IngredientMaster.register(
+				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L);
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		when(repository.findAll(pageable))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(entity), pageable, 30000));
+
+		var results = service.search(null, pageable);
+
+		assertThat(results.content()).hasSize(1);
+		assertThat(results.totalElements()).isEqualTo(30000);
 	}
 
 	@Test

@@ -7,9 +7,11 @@ import com.perfumeryaicore.domain.ingredient.entity.IngredientMaster;
 import com.perfumeryaicore.domain.ingredient.repository.IngredientMasterRepository;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
+import com.perfumeryaicore.global.response.PageResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,12 +54,15 @@ public class IngredientMasterService {
 		return IngredientMasterResponse.from(getOrThrow(externalId));
 	}
 
-	/** 한 번도 처방에 쓰이지 않은 원료도 검색된다 - 이 목록은 관측 미러가 아니라 등록된 마스터 전체다. */
-	public List<IngredientMasterResponse> search(String query) {
-		List<IngredientMaster> rows = (query == null || query.isBlank())
-				? repository.findAll()
-				: repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase(query, query);
-		return rows.stream().map(IngredientMasterResponse::from).toList();
+	/**
+	 * 한 번도 처방에 쓰이지 않은 원료도 검색된다 - 이 목록은 관측 미러가 아니라 등록된 마스터 전체다.
+	 * 조향 AI의 registry 규모(약 3만 건)까지 등록될 수 있어 페이지네이션한다(BE-085 후속).
+	 */
+	public PageResponse<IngredientMasterResponse> search(String query, Pageable pageable) {
+		var page = (query == null || query.isBlank())
+				? repository.findAll(pageable)
+				: repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase(query, query, pageable);
+		return PageResponse.of(page.map(IngredientMasterResponse::from));
 	}
 
 	private IngredientMaster getOrThrow(String externalId) {

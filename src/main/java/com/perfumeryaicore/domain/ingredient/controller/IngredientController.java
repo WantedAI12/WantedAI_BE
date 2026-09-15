@@ -12,12 +12,15 @@ import com.perfumeryaicore.domain.ingredient.service.IngredientMasterService;
 import com.perfumeryaicore.domain.ingredient.service.IngredientQueryService;
 import com.perfumeryaicore.domain.job.dto.response.JobResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
+import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -83,12 +86,13 @@ public class IngredientController {
 				.body(ApiResponse.success(ingredientMasterService.register(principal.id(), request)));
 	}
 
-	@Operation(summary = "원료 마스터 검색 (이름/CAS 부분 일치, 프로젝트 범위 아님 - 원료는 공용 참조 데이터)")
+	@Operation(summary = "원료 마스터 검색 (이름/CAS 부분 일치, 프로젝트 범위 아님 - 원료는 공용 참조 데이터, 페이지네이션)")
 	@GetMapping("/ingredient-master")
-	public ApiResponse<List<IngredientMasterResponse>> searchMaster(
+	public ApiResponse<PageResponse<IngredientMasterResponse>> searchMaster(
 			@AuthenticationPrincipal MemberPrincipal principal,
-			@RequestParam(required = false) String query) {
-		return ApiResponse.success(ingredientMasterService.search(query));
+			@RequestParam(required = false) String query,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(ingredientMasterService.search(query, pageable));
 	}
 
 	@Operation(summary = "원료 마스터 상세 (외부 ID 기준)")
