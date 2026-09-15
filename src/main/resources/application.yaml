@@ -27,7 +27,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       # 비로그인 상태에선 UP/DOWN만 보이고 DB 연결 등 상세 정보는 인증된 요청에만 노출한다

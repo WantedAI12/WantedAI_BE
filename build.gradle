@@ -47,3 +47,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// BE-088: /actuator/info가 버전/빌드 시각을 노출할 수 있도록 build-info.properties를 생성한다.
+springBoot {
+	buildInfo()
+}
