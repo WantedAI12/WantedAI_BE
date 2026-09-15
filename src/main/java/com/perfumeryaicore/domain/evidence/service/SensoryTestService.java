@@ -69,8 +69,10 @@ public class SensoryTestService {
 		Long candidateVersionId = candidateService.getCurrentVersionId(candidateId, memberId);
 		Double predictedSimilarityAtPlan = predictionService.get(candidateId, memberId).similarityScore();
 
-		SensoryTest test = sensoryTestRepository.save(
-				SensoryTest.plan(candidateId, candidateVersionId, predictedSimilarityAtPlan, dto.planDetail(), memberId));
+		SensoryTest test = sensoryTestRepository.save(SensoryTest.plan(
+				candidateId, candidateVersionId, predictedSimilarityAtPlan, dto.planDetail(),
+				dto.protocolVersion(), dto.sampleCode(), dto.batchLot(), dto.panelSize(), dto.blindLevel(),
+				memberId));
 		log.info("[EVIDENCE] sensory-test id={} planned candidate={} version={} by={}",
 				test.getId(), candidateId, candidateVersionId, memberId);
 		return toResponse(test, List.of());
@@ -87,15 +89,38 @@ public class SensoryTestService {
 				.toList();
 	}
 
+	/**
+	 * BE-055: 측정값(resultData)이 없으면 결측 사유가 필수다 - 둘 다 없는 제출을 "결과 등록"으로
+	 * 받아들이면 결측인지 등록 실수인지 구분할 수 없다. {@code supersedesResultId}로 이전 결과를
+	 * 가리키면 그 결과를 고치는 대신 새 행을 만들고, 원본은 그대로 남는다(BE-055).
+	 */
 	@Transactional
 	public SensoryTestResultResponse recordResult(Long testId, Long memberId, SensoryTestResultCreateRequest dto) {
 		SensoryTest test = getAccessibleTest(testId, memberId);
 		Long projectId = candidateService.getProjectId(test.getCandidateId(), memberId);
 		accessGuard.requireRole(projectId, memberId, WRITE_ROLE);
+
+		if (dto.resultData() == null && (dto.missingReason() == null || dto.missingReason().isBlank())) {
+			throw new BusinessException(ErrorCode.SENSORY_RESULT_DATA_OR_MISSING_REASON_REQUIRED);
+		}
+		if (dto.scaleMin() != null && dto.scaleMax() != null && dto.scaleMin() >= dto.scaleMax()) {
+			throw new BusinessException(ErrorCode.SENSORY_RESULT_SCALE_RANGE_INVALID);
+		}
+		if (dto.supersedesResultId() != null) {
+			SensoryTestResult original = sensoryTestResultRepository.findById(dto.supersedesResultId())
+					.orElseThrow(() -> new BusinessException(ErrorCode.SENSORY_TEST_RESULT_NOT_FOUND));
+			if (!original.getSensoryTestId().equals(testId)) {
+				throw new BusinessException(ErrorCode.SENSORY_RESULT_SUPERSEDES_MISMATCH);
+			}
+		}
+
 		SensoryTestResult result = sensoryTestResultRepository.save(SensoryTestResult.record(
-				testId, dto.resultData().toString(), dto.correlationWithPrediction(), memberId));
+				testId, dto.resultData() == null ? null : dto.resultData().toString(),
+				dto.correlationWithPrediction(), dto.panelistIdentifier(), dto.timepointMinutes(),
+				dto.scaleMin(), dto.scaleMax(), dto.missingReason(), dto.supersedesResultId(), memberId));
 		test.markCompleted();
-		log.info("[EVIDENCE] sensory-test id={} result recorded by={}", testId, memberId);
+		log.info("[EVIDENCE] sensory-test id={} result recorded by={} supersedes={}",
+				testId, memberId, dto.supersedesResultId());
 		return toResultResponse(result);
 	}
 
@@ -141,14 +166,17 @@ public class SensoryTestService {
 	private SensoryTestResponse toResponse(SensoryTest test, List<SensoryTestResultResponse> results) {
 		return new SensoryTestResponse(
 				test.getId(), test.getCandidateId(), test.getCandidateVersionId(), test.getPlanDetail(),
-				test.getStatus(), results, test.getCreatedAt(),
+				test.getProtocolVersion(), test.getSampleCode(), test.getBatchLot(), test.getPanelSize(),
+				test.getBlindLevel(), test.getStatus(), results, test.getCreatedAt(),
 				test.isPublished(), test.getPublishedBy(), test.getPublishedAt());
 	}
 
 	private SensoryTestResultResponse toResultResponse(SensoryTestResult result) {
 		return new SensoryTestResultResponse(
 				result.getId(), result.getSensoryTestId(), parse(result.getResultData()),
-				result.getCorrelationWithPrediction(), result.getRecordedBy(), result.getCreatedAt());
+				result.getCorrelationWithPrediction(), result.getPanelistIdentifier(), result.getTimepointMinutes(),
+				result.getScaleMin(), result.getScaleMax(), result.getMissingReason(),
+				result.getSupersedesResultId(), result.getRecordedBy(), result.getCreatedAt());
 	}
 
 	private JsonNode parse(String json) {

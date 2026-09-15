@@ -52,7 +52,8 @@ class EvidenceReportPdfRendererTest {
 						LocalDateTime.now().minusHours(1), "IFRA 기준 충족 확인"));
 
 		List<SensoryTestResponse> sensoryTests = List.of(new SensoryTestResponse(
-				10L, 900L, 1200L, "5인 패널 블라인드 삼각 검사", SensoryTestStatus.COMPLETED, List.of(), LocalDateTime.now(),
+				10L, 900L, 1200L, "5인 패널 블라인드 삼각 검사", null, null, null, null, null,
+				SensoryTestStatus.COMPLETED, List.of(), LocalDateTime.now(),
 				true, 3L, LocalDateTime.now()));
 
 		return new EvidenceReportBundle(900L, candidate, safety, prediction, timeline, sensoryTests,

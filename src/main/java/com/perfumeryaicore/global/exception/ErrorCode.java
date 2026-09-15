@@ -70,6 +70,11 @@ public enum ErrorCode {
 	SENSORY_TEST_NOT_COMPLETED(HttpStatus.CONFLICT, "결과가 등록되지 않은 계획은 공개할 수 없습니다."),
 	SENSORY_TEST_CANDIDATE_NOT_CONFIRMED(HttpStatus.CONFLICT, "실험 후보로 확정되지 않은 후보는 관능 계획을 등록할 수 없습니다."),
 	EVIDENCE_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "증거 보고서를 찾을 수 없습니다."),
+	SENSORY_TEST_RESULT_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 결과를 찾을 수 없습니다."),
+	SENSORY_RESULT_DATA_OR_MISSING_REASON_REQUIRED(HttpStatus.BAD_REQUEST,
+			"측정 결과가 없으면 결측 사유(missingReason)를 입력해야 합니다."),
+	SENSORY_RESULT_SCALE_RANGE_INVALID(HttpStatus.BAD_REQUEST, "척도 최솟값은 최댓값보다 작아야 합니다."),
+	SENSORY_RESULT_SUPERSEDES_MISMATCH(HttpStatus.BAD_REQUEST, "다른 관능 검증에 속한 결과는 수정 대상으로 지정할 수 없습니다."),
 
 	// 원료 카탈로그(Ingredient)
 	CATALOG_SYNC_NOT_FOUND(HttpStatus.NOT_FOUND, "카탈로그 동기화 실행 기록을 찾을 수 없습니다."),
