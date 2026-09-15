@@ -6,6 +6,9 @@ import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesResponse;
+import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
@@ -14,6 +17,9 @@ import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
 import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
+import com.perfumeryaicore.global.client.dto.ReassessFormulaRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateResponse;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -30,6 +36,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -241,6 +248,93 @@ public class PerfumeryAiClient {
 		return new PerfumeryAiResult<>(body, parse(body, AssessEvidenceResponse.class), latency);
 	}
 
+	/**
+	 * 확인된 검토 결과({@code review_id})를 조향식 후보로 확정한다. 등록된 규제·공급 근거가
+	 * 없으면 일반 호출은 422/abstained로 거부된다(README). 성공 응답 스키마는 Modal
+	 * OpenAPI에서도 빈 객체로만 선언되어 있어(불확실) 원문 노드 그대로 반환한다 - 가정으로
+	 * 필드를 단정하지 않는다.
+	 */
+	public PerfumeryAiResult<JsonNode> evaluateFormula(
+			EvaluateFormulaRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-evaluate", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/evaluate")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, readTree(body), latency);
+	}
+
+	/** 고정 배합을 유지한 채 조건만 재평가한다. {@link #evaluateFormula}와 같은 근거·응답 스키마 제약. */
+	public PerfumeryAiResult<JsonNode> reassessFormula(
+			ReassessFormulaRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-reassess", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/reassess")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, readTree(body), latency);
+	}
+
+	/**
+	 * BE가 보존한 후보 평가 스냅샷 2~10개를 비교한다. evaluate/reassess 성공과 달리 근거 등록을
+	 * 직접 요구하지 않는다(README 확인) - {@code evaluation}에 진단(diagnostic) 결과를 넣어도 된다.
+	 */
+	public PerfumeryAiResult<CompareCandidatesResponse> compareCandidates(
+			CompareCandidatesRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-compare", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/compare")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, CompareCandidatesResponse.class), latency);
+	}
+
+	/**
+	 * 저장 후보와 자연어 지시로 수정된 입력/검토 결과를 만든다. 새 후보를 저장·승인하지
+	 * 않는다 - {@code next_operation}이 안내하는 재확인 절차를 호출부가 따라야 한다.
+	 */
+	public PerfumeryAiResult<ReviseCandidateResponse> reviseCandidate(
+			ReviseCandidateRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("briefs-revise", traceId, markStart,
+				() -> webClient.post().uri("/v2/briefs/revise")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, ReviseCandidateResponse.class), latency);
+	}
+
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---
 
 	/**
@@ -363,6 +457,16 @@ public class PerfumeryAiClient {
 			return jsonMapper.readValue(body, type);
 		} catch (JacksonException e) {
 			log.error("[AI] response parse failure type={} reason={}", type.getSimpleName(), e.getMessage());
+			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
+		}
+	}
+
+	/** 응답 스키마가 확정되지 않은 연산(evaluate/reassess)용 - 필드를 단정하지 않고 원문 트리로만 받는다. */
+	private JsonNode readTree(String body) {
+		try {
+			return jsonMapper.readTree(body);
+		} catch (JacksonException e) {
+			log.error("[AI] response tree parse failure reason={}", e.getMessage());
 			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 		}
 	}

@@ -55,7 +55,10 @@ ai:
     # 소스/저장소에 실제 값을 넣지 말고 환경변수·Secret Manager로만 주입할 것.
     auth-token: ${AI_MODAL_AUTH_TOKEN:}
     connect-timeout: ${AI_MODAL_CONNECT_TIMEOUT:10s}
-    response-timeout: ${AI_MODAL_RESPONSE_TIMEOUT:130s}
+    # AI 개발팀 확인(2026-09-15): 추론 큐 대기 기본 110초 + Modal 함수 자체 타임아웃 300초.
+    # 정상 요청도 300초 가까이 걸릴 수 있어, 그보다 짧은 클라이언트 타임아웃은 정상 응답을
+    # 우리 쪽에서 먼저 끊어버리는 오탐 실패를 만든다. 305초로 올려 여유를 둔다.
+    response-timeout: ${AI_MODAL_RESPONSE_TIMEOUT:305s}
     requests-per-minute: ${AI_MODAL_RPM:30}
     max-retries: ${AI_MODAL_MAX_RETRIES:1}
 
