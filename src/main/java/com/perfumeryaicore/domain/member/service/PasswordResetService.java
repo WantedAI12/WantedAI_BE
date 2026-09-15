@@ -6,6 +6,8 @@ import com.perfumeryaicore.domain.member.entity.RefreshToken;
 import com.perfumeryaicore.domain.member.repository.MemberRepository;
 import com.perfumeryaicore.domain.member.repository.PasswordResetTokenRepository;
 import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
+import com.perfumeryaicore.global.config.AppProperties;
+import com.perfumeryaicore.global.email.EmailSender;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.security.TokenHasher;
@@ -23,8 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 비로그인 비밀번호 재설정(COR-B03). {@link RefreshToken}과 같은 방식으로 원문이 아닌 해시만 저장하고,
  * 계정 존재 여부를 노출하지 않도록 이메일 요청은 가입 여부와 무관하게 항상 같은 방식으로 끝난다.
  *
- * <p>실제 이메일 발송은 이 서비스의 범위 밖이다 — 여기서는 토큰만 발급한다. 어떤 채널로
- * 사용자에게 전달할지는 별도 작업.
+ * <p>{@link com.perfumeryaicore.global.email.EmailSender} 발송 실패는 이 원칙을 지키기 위해
+ * 예외를 던지지 않는다 — 발송 성공 여부로 API 응답이 달라지면 그 자체로 가입 여부를 추측할 수
+ * 있는 신호가 된다.
  */
 @Slf4j
 @Service
@@ -42,6 +45,8 @@ public class PasswordResetService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final TokenHasher tokenHasher;
+	private final EmailSender emailSender;
+	private final AppProperties appProperties;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	/**
@@ -67,7 +72,11 @@ public class PasswordResetService {
 				.expiresAt(now.plus(TOKEN_TTL))
 				.build());
 		log.info("[AUTH] password reset token issued for member={}", member.getId());
-		// TODO(email): 실제 발송 연동은 별도 작업 범위 — 여기서는 토큰만 발급한다.
+
+		String resetLink = "%s/reset-password?token=%s".formatted(appProperties.frontendBaseUrl(), rawToken);
+		emailSender.send(member.getEmail(), "비밀번호 재설정 안내",
+				"비밀번호를 재설정하려면 아래 링크를 30분 이내에 열어주세요:\n\n" + resetLink
+						+ "\n\n본인이 요청하지 않았다면 이 메일을 무시하세요.");
 	}
 
 	/**
