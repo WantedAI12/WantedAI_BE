@@ -1,10 +1,15 @@
 package com.perfumeryaicore.domain.safety.controller;
 
 import com.perfumeryaicore.domain.safety.dto.request.ApprovalGateCreateRequest;
+import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
 import com.perfumeryaicore.domain.safety.dto.response.ApprovalGateResponse;
 import com.perfumeryaicore.domain.safety.dto.response.SafetyEvaluationResponse;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
+import com.perfumeryaicore.domain.safety.service.RegulatoryEvidenceService;
 import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
+import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +24,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -32,6 +38,7 @@ public class SafetyController {
 
 	private final SafetyEvaluationService safetyEvaluationService;
 	private final ApprovalGateService approvalGateService;
+	private final RegulatoryEvidenceService regulatoryEvidenceService;
 
 	@Operation(summary = "안전·규제·공급 적합성 평가 결과 조회")
 	@GetMapping("/candidates/{candidateId}/safety-evaluation")
@@ -57,5 +64,30 @@ public class SafetyController {
 			@Valid @RequestBody ApprovalGateCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.body(ApiResponse.success(approvalGateService.register(candidateId, principal.id(), request)));
+	}
+
+	@Operation(summary = "공개 규제 자료 연결·운영자 증거 묶음 등록 상태 (v2, 전역 참조 데이터)")
+	@GetMapping("/evidence/status")
+	public ApiResponse<EvidenceStatusResponse> evidenceStatus(
+			@AuthenticationPrincipal MemberPrincipal principal) {
+		return ApiResponse.success(regulatoryEvidenceService.status(principal.id()));
+	}
+
+	@Operation(summary = "원료별 공개 규제 자료 연결 범위 조회 (v2, offset/limit 페이지네이션, limit 최대 500)")
+	@GetMapping("/evidence/coverage")
+	public ApiResponse<EvidenceCoverageResponse> evidenceCoverage(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam(required = false) Integer offset,
+			@RequestParam(required = false) Integer limit) {
+		return ApiResponse.success(regulatoryEvidenceService.coverage(principal.id(), offset, limit));
+	}
+
+	@Operation(summary = "후보 현재 배합의 규제·공급 근거 평가 (v2) — 현재 배합 적합 판정이 아니라 등록된 근거 커버리지 확인용")
+	@PostMapping("/candidates/{candidateId}/evidence-assessment")
+	public ApiResponse<AssessEvidenceResponse> assessEvidence(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@Valid @RequestBody AssessEvidenceApiRequest request) {
+		return ApiResponse.success(regulatoryEvidenceService.assess(candidateId, principal.id(), request));
 	}
 }

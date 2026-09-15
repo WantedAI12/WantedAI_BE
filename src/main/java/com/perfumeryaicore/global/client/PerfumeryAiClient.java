@@ -1,8 +1,12 @@
 package com.perfumeryaicore.global.client;
 
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
+import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
+import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
@@ -183,6 +187,46 @@ public class PerfumeryAiClient {
 				.retrieve().bodyToMono(String.class).block(blockTimeout()));
 		long latency = System.currentTimeMillis() - startedAt.get();
 		return new PerfumeryAiResult<>(body, parse(body, ClarifyBriefResponse.class), latency);
+	}
+
+	/**
+	 * 공개 자료 연결·운영자 증거 묶음 등록 상태. {@code /v1/catalog}처럼 같은 컨테이너에서 실제
+	 * 연산을 하는 호출이라 동시성 게이트·레이트 리밋을 그대로 적용한다({@code /health}와 다름).
+	 */
+	public PerfumeryAiResult<EvidenceStatusResponse> evidenceStatus(String traceId) {
+		String body = serializedCall("evidence-status", traceId, null, () -> webClient.get().uri("/v2/evidence/status")
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return new PerfumeryAiResult<>(body, parse(body, EvidenceStatusResponse.class), 0L);
+	}
+
+	/** 원료별 공개 자료 연결 범위. {@code limit} 최대 500(Modal 계약). */
+	public PerfumeryAiResult<EvidenceCoverageResponse> evidenceCoverage(int offset, int limit, String traceId) {
+		String body = serializedCall("evidence-coverage", traceId, null, () -> webClient.get()
+				.uri(uriBuilder -> uriBuilder.path("/v2/evidence/coverage")
+						.queryParam("offset", offset)
+						.queryParam("limit", limit)
+						.build())
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return new PerfumeryAiResult<>(body, parse(body, EvidenceCoverageResponse.class), 0L);
+	}
+
+	/** 배합·제품·지역·비용·정책 조건의 규제·공급 근거를 평가한다 - 실제 후보 확정과는 별개다. */
+	public PerfumeryAiResult<AssessEvidenceResponse> assessEvidence(
+			AssessEvidenceRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-assess-evidence", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/assess-evidence")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, AssessEvidenceResponse.class), latency);
 	}
 
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---
