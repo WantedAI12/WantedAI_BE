@@ -356,7 +356,7 @@ class ProjectServiceTest {
 	void member_audit_log_is_forbidden_for_a_plain_member() {
 		actorHasRole(ProjectRole.PERFUMER);
 
-		assertThatThrownBy(() -> service.memberAuditLog(PROJECT_ID, ACTOR_ID))
+		assertThatThrownBy(() -> service.memberAuditLog(PROJECT_ID, ACTOR_ID, org.springframework.data.domain.PageRequest.of(0, 20)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
@@ -366,11 +366,13 @@ class ProjectServiceTest {
 		actorHasRole(ProjectRole.ORG_ADMIN);
 		var entry = com.perfumeryaicore.domain.project.entity.ProjectMemberAuditLog.added(
 				PROJECT_ID, TARGET_ID, ACTOR_ID, ProjectRole.PERFUMER);
-		when(auditLogRepository.findByProjectIdOrderByCreatedAtDesc(PROJECT_ID)).thenReturn(java.util.List.of(entry));
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		when(auditLogRepository.findByProjectIdOrderByCreatedAtDesc(PROJECT_ID, pageable))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(entry)));
 
-		var result = service.memberAuditLog(PROJECT_ID, ACTOR_ID);
+		var result = service.memberAuditLog(PROJECT_ID, ACTOR_ID, pageable);
 
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).action()).isEqualTo(ProjectMemberAction.ADDED);
+		assertThat(result.content()).hasSize(1);
+		assertThat(result.content().get(0).action()).isEqualTo(ProjectMemberAction.ADDED);
 	}
 }

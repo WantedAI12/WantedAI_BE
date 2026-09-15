@@ -18,6 +18,7 @@ import com.perfumeryaicore.domain.project.repository.ProjectRepository;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
+import com.perfumeryaicore.global.response.PageResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +26,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -184,12 +186,14 @@ public class ProjectService {
 		log.info("[PROJECT] id={} member={} removed by={}", projectId, targetMemberId, actorId);
 	}
 
-	/** 멤버 추가·역할 변경·제거의 불변 감사 이력을 최신순으로 조회한다(ORG_ADMIN/PROJECT_MANAGER 전용, BE-010). */
-	public List<ProjectMemberAuditLogResponse> memberAuditLog(Long projectId, Long memberId) {
+	/**
+	 * 멤버 추가·역할 변경·제거의 불변 감사 이력을 최신순으로 조회한다(ORG_ADMIN/PROJECT_MANAGER 전용, BE-010).
+	 * 이력은 시간이 지날수록 무한정 쌓이므로 페이지네이션한다(BE-085).
+	 */
+	public PageResponse<ProjectMemberAuditLogResponse> memberAuditLog(Long projectId, Long memberId, Pageable pageable) {
 		accessGuard.requireRole(projectId, memberId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
-		return auditLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
-				.map(ProjectMemberAuditLogResponse::from)
-				.toList();
+		return PageResponse.of(auditLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId, pageable)
+				.map(ProjectMemberAuditLogResponse::from));
 	}
 
 	/**
