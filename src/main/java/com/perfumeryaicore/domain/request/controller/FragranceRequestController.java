@@ -3,9 +3,11 @@ package com.perfumeryaicore.domain.request.controller;
 import com.perfumeryaicore.domain.request.dto.request.AssignWorkChecklistItemRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
+import com.perfumeryaicore.domain.request.dto.request.CompareCandidatesApiRequest;
 import com.perfumeryaicore.domain.request.dto.request.CreateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.EvaluateDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
+import com.perfumeryaicore.domain.request.dto.request.ReviseCandidateApiRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateWorkChecklistItemRequest;
 import com.perfumeryaicore.domain.request.dto.response.FragranceRequestResponse;
@@ -18,8 +20,10 @@ import com.perfumeryaicore.domain.request.service.BriefReviewService;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.domain.request.service.WorkChecklistService;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesResponse;
 import com.perfumeryaicore.global.client.dto.EvaluationResponse;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
@@ -177,5 +181,23 @@ public class FragranceRequestController {
 			@PathVariable Long requestId,
 			@Valid @RequestBody ReassessDiagnosticRequest request) {
 		return ApiResponse.success(briefReviewService.reassessDiagnostic(requestId, principal.id(), request));
+	}
+
+	@Operation(summary = "저장 후보 스냅샷 비교 (v2, 2~10개) — diagnostic-evaluate/reassess가 반환한 값을 그대로 넣는다")
+	@PostMapping("/requests/{requestId}/diagnostic-compare")
+	public ApiResponse<CompareCandidatesResponse> diagnosticCompare(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@Valid @RequestBody CompareCandidatesApiRequest request) {
+		return ApiResponse.success(briefReviewService.compareCandidates(requestId, principal.id(), request));
+	}
+
+	@Operation(summary = "저장 후보 스냅샷 자연어 수정 (v2) — 새 후보를 저장·승인하지 않으며 next_operation을 따라 재확인해야 한다")
+	@PostMapping("/requests/{requestId}/diagnostic-revise")
+	public ApiResponse<ReviseCandidateResponse> diagnosticRevise(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@Valid @RequestBody ReviseCandidateApiRequest request) {
+		return ApiResponse.success(briefReviewService.reviseCandidate(requestId, principal.id(), request));
 	}
 }
