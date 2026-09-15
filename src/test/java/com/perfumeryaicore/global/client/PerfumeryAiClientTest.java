@@ -3,10 +3,14 @@ package com.perfumeryaicore.global.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
+import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
 import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
+import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
+import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -18,6 +22,7 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.json.JsonMapper;
 
 class PerfumeryAiClientTest {
 
@@ -216,5 +221,83 @@ class PerfumeryAiClientTest {
 				LotionEstimateRequest.of("citrus lotion", 1, 150.0), "trace-1", null))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
+	}
+
+	private static final JsonMapper JSON = JsonMapper.builder().build();
+
+	@Test
+	void prepareBrief_needs_input_status_carries_questions() {
+		AtomicInteger calls = new AtomicInteger();
+		String needsInput = """
+				{"schema_version":"rd-brief-2","status":"needs_input",
+				 "missing_fields":["request.formula.target_region"],
+				 "conflicting_fields":[],
+				 "questions":[{"id":"request.formula.target_region","field":"request.formula.target_region",
+				               "required":true,"input_type":"choice","options":[{"value":"EU","label":"EU"}],
+				               "reason_code":"explicit_value_missing","question":"대상 지역를 확인해 주세요."}],
+				 "review_id":null,"confirmation_required":true,"recipe_generated":false,
+				 "result_id":"result-1"}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, needsInput, calls));
+		PrepareBriefRequest request = PrepareBriefRequest.of(
+				JSON.createObjectNode(), JSON.createObjectNode());
+
+		var result = client.prepareBrief(request, "trace-1", null);
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().needsInput()).isTrue();
+		assertThat(result.parsed().questions()).hasSize(1);
+		assertThat(result.parsed().questions().get(0).id()).isEqualTo("request.formula.target_region");
+		assertThat(result.parsed().resultId()).isEqualTo("result-1");
+		assertThat(result.parsed().reviewId()).isNull();
+	}
+
+	@Test
+	void prepareBrief_ready_status_carries_a_review_id() {
+		AtomicInteger calls = new AtomicInteger();
+		String ready = """
+				{"schema_version":"rd-brief-2","status":"ready","missing_fields":[],"conflicting_fields":[],
+				 "questions":[],"review_id":"review-1","confirmation_required":true,
+				 "recipe_generated":false,"result_id":"result-2"}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, ready, calls));
+		PrepareBriefRequest request = PrepareBriefRequest.of(
+				JSON.createObjectNode(), JSON.createObjectNode());
+
+		var result = client.prepareBrief(request, "trace-1", null);
+
+		assertThat(result.parsed().isReady()).isTrue();
+		assertThat(result.parsed().reviewId()).isEqualTo("review-1");
+	}
+
+	@Test
+	void clarifyBrief_success_preserves_applied_answer_ids() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"schema_version":"rd-clarification-2","previous_result_id":"result-1",
+				 "applied_answer_ids":["request.formula.target_region"],
+				 "request":{},"prepared":{"status":"ready"},"new_inference_count":1,"state_changed":true}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+		ClarifyBriefRequest request = ClarifyBriefRequest.of(
+				JSON.createObjectNode(), JSON.createObjectNode(), "result-1", JSON.createObjectNode());
+
+		var result = client.clarifyBrief(request, "trace-1", null);
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().previousResultId()).isEqualTo("result-1");
+		assertThat(result.parsed().appliedAnswerIds()).containsExactly("request.formula.target_region");
+		assertThat(result.parsed().stateChanged()).isTrue();
+	}
+
+	@Test
+	void prepareBrief_server_error_retries_once_then_fails() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.BAD_GATEWAY, "{}", calls));
+		PrepareBriefRequest request = PrepareBriefRequest.of(
+				JSON.createObjectNode(), JSON.createObjectNode());
+
+		assertThatThrownBy(() -> client.prepareBrief(request, "trace-1", null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.AI_SERVICE_ERROR);
+		assertThat(calls.get()).isEqualTo(2);
 	}
 }
