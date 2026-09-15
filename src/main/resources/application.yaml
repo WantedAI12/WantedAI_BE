@@ -71,3 +71,10 @@ aws:
     region: ${AWS_REGION:ap-northeast-2}
     # 자격증명은 여기 없음 — AWS SDK 기본 체인(EC2 IAM 인스턴스 역할 → 환경변수
     # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY → 자격증명 파일)을 그대로 쓴다.
+  ses:
+    region: ${AWS_REGION:ap-northeast-2}
+    # SES에서 발신 도메인/주소 인증(verified identity)이 끝나야 실제 발송이 성공한다 — 운영 설정은 별도.
+    sender-email: ${AWS_SES_SENDER_EMAIL:no-reply@perfumery-ai-core.com}
+
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}

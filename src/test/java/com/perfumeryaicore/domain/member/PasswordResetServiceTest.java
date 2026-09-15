@@ -16,6 +16,8 @@ import com.perfumeryaicore.domain.member.repository.MemberRepository;
 import com.perfumeryaicore.domain.member.repository.PasswordResetTokenRepository;
 import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
 import com.perfumeryaicore.domain.member.service.PasswordResetService;
+import com.perfumeryaicore.global.config.AppProperties;
+import com.perfumeryaicore.global.email.EmailSender;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.security.TokenHasher;
@@ -39,8 +41,11 @@ class PasswordResetServiceTest {
 	private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
 	private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 	private final TokenHasher tokenHasher = mock(TokenHasher.class);
+	private final EmailSender emailSender = mock(EmailSender.class);
+	private final AppProperties appProperties = new AppProperties("http://localhost:3000");
 	private final PasswordResetService service = new PasswordResetService(
-			memberRepository, resetTokenRepository, refreshTokenRepository, passwordEncoder, tokenHasher);
+			memberRepository, resetTokenRepository, refreshTokenRepository, passwordEncoder, tokenHasher,
+			emailSender, appProperties);
 
 	private static Member member(long id) {
 		Member m = Member.builder().email("user@example.com").passwordHash("old-hash").name("사용자").build();
@@ -69,10 +74,11 @@ class PasswordResetServiceTest {
 		service.forgotPassword("ghost@example.com");
 
 		verify(resetTokenRepository, never()).save(any());
+		verify(emailSender, never()).send(any(), any(), any());
 	}
 
 	@Test
-	void forgotPassword_for_a_known_email_issues_a_token() {
+	void forgotPassword_for_a_known_email_issues_a_token_and_emails_the_reset_link() {
 		when(memberRepository.findByEmail("user@example.com")).thenReturn(Optional.of(member(MEMBER_ID)));
 		when(resetTokenRepository.existsByMemberIdAndRevokedAtIsNullAndCreatedAtAfter(eq(MEMBER_ID), any()))
 				.thenReturn(false);
@@ -82,10 +88,14 @@ class PasswordResetServiceTest {
 		ArgumentCaptor<PasswordResetToken> captor = ArgumentCaptor.forClass(PasswordResetToken.class);
 		verify(resetTokenRepository).save(captor.capture());
 		assertThat(captor.getValue().getMemberId()).isEqualTo(MEMBER_ID);
+
+		ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+		verify(emailSender).send(eq("user@example.com"), any(), bodyCaptor.capture());
+		assertThat(bodyCaptor.getValue()).contains("http://localhost:3000/reset-password?token=");
 	}
 
 	@Test
-	void forgotPassword_within_the_cooldown_window_does_not_issue_a_second_token() {
+	void forgotPassword_within_the_cooldown_window_does_not_issue_a_second_token_or_email() {
 		when(memberRepository.findByEmail("user@example.com")).thenReturn(Optional.of(member(MEMBER_ID)));
 		when(resetTokenRepository.existsByMemberIdAndRevokedAtIsNullAndCreatedAtAfter(eq(MEMBER_ID), any()))
 				.thenReturn(true);
@@ -93,6 +103,7 @@ class PasswordResetServiceTest {
 		service.forgotPassword("user@example.com");
 
 		verify(resetTokenRepository, never()).save(any());
+		verify(emailSender, never()).send(any(), any(), any());
 	}
 
 	@Test

@@ -43,3 +43,9 @@ aws:
   s3:
     bucket: test-bucket
     region: ap-northeast-2
+  ses:
+    region: ap-northeast-2
+    sender-email: no-reply@test.local
+
+app:
+  frontend-base-url: http://localhost:3000
