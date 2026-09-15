@@ -28,6 +28,8 @@ public class SecurityConfig {
 
 	// 로드밸런서 등이 인증 없이 호출해야 한다(BE-089). 상세 정보는 노출하지 않는다
 	// (management.endpoint.health.show-details가 별도로 막는다).
+	// /actuator/info는 배포 확인용 버전 식별 정보(이름/버전/빌드 시각)만 담아 민감 정보가
+	// 없으므로 같은 이유로 공개한다(BE-088).
 	private static final String[] PUBLIC_PATHS = {
 			"/auth/**",
 			"/v3/api-docs/**",
@@ -35,6 +37,7 @@ public class SecurityConfig {
 			"/swagger-ui.html",
 			"/actuator/health",
 			"/actuator/health/**",
+			"/actuator/info",
 	};
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
