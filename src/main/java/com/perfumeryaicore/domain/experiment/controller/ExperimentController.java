@@ -53,7 +53,7 @@ public class ExperimentController {
 		}
 	}
 
-	@Operation(summary = "실험 후보로 확정 또는 상태 변경")
+	@Operation(summary = "실험 후보로 확정, 상태 변경, 또는 확정 선택 해제(UNDER_REVIEW로 되돌리기)")
 	@PostMapping("/candidates/{candidateId}/experiment-status")
 	public ApiResponse<ExperimentStatusLogResponse> changeStatus(
 			@AuthenticationPrincipal MemberPrincipal principal,
