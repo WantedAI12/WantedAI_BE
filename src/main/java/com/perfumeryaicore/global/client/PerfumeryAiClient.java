@@ -9,6 +9,7 @@ import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesResponse;
 import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
+import com.perfumeryaicore.global.client.dto.EvaluationResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
@@ -36,7 +37,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -250,11 +250,12 @@ public class PerfumeryAiClient {
 
 	/**
 	 * 확인된 검토 결과({@code review_id})를 조향식 후보로 확정한다. 등록된 규제·공급 근거가
-	 * 없으면 일반 호출은 422/abstained로 거부된다(README). 성공 응답 스키마는 Modal
-	 * OpenAPI에서도 빈 객체로만 선언되어 있어(불확실) 원문 노드 그대로 반환한다 - 가정으로
-	 * 필드를 단정하지 않는다.
+	 * 없으면 일반 호출은 422/abstained로 거부된다. {@code diagnostic_only=true}면 근거 미등록
+	 * 상태에서도 HTTP 200을 반환하지만 {@code candidates}는 비고 결과는
+	 * {@code diagnostic_candidates}에만 담긴다(AI 개발팀 확인, 2026-09-16) - 정식 승인 후보가
+	 * 아니므로 호출부가 반드시 {@link EvaluationResponse#isDiagnostic()}으로 구분해야 한다.
 	 */
-	public PerfumeryAiResult<JsonNode> evaluateFormula(
+	public PerfumeryAiResult<EvaluationResponse> evaluateFormula(
 			EvaluateFormulaRequest request, String traceId, Runnable onSlotAcquired) {
 		AtomicLong startedAt = new AtomicLong();
 		Runnable markStart = () -> {
@@ -269,11 +270,11 @@ public class PerfumeryAiClient {
 						.bodyValue(request)
 						.retrieve().bodyToMono(String.class).block(blockTimeout()));
 		long latency = System.currentTimeMillis() - startedAt.get();
-		return new PerfumeryAiResult<>(body, readTree(body), latency);
+		return new PerfumeryAiResult<>(body, parse(body, EvaluationResponse.class), latency);
 	}
 
 	/** 고정 배합을 유지한 채 조건만 재평가한다. {@link #evaluateFormula}와 같은 근거·응답 스키마 제약. */
-	public PerfumeryAiResult<JsonNode> reassessFormula(
+	public PerfumeryAiResult<EvaluationResponse> reassessFormula(
 			ReassessFormulaRequest request, String traceId, Runnable onSlotAcquired) {
 		AtomicLong startedAt = new AtomicLong();
 		Runnable markStart = () -> {
@@ -288,7 +289,7 @@ public class PerfumeryAiClient {
 						.bodyValue(request)
 						.retrieve().bodyToMono(String.class).block(blockTimeout()));
 		long latency = System.currentTimeMillis() - startedAt.get();
-		return new PerfumeryAiResult<>(body, readTree(body), latency);
+		return new PerfumeryAiResult<>(body, parse(body, EvaluationResponse.class), latency);
 	}
 
 	/**
@@ -457,16 +458,6 @@ public class PerfumeryAiClient {
 			return jsonMapper.readValue(body, type);
 		} catch (JacksonException e) {
 			log.error("[AI] response parse failure type={} reason={}", type.getSimpleName(), e.getMessage());
-			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
-		}
-	}
-
-	/** 응답 스키마가 확정되지 않은 연산(evaluate/reassess)용 - 필드를 단정하지 않고 원문 트리로만 받는다. */
-	private JsonNode readTree(String body) {
-		try {
-			return jsonMapper.readTree(body);
-		} catch (JacksonException e) {
-			log.error("[AI] response tree parse failure reason={}", e.getMessage());
 			throw new BusinessException(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 		}
 	}

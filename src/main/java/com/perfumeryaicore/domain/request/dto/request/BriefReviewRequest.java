@@ -15,10 +15,20 @@ public record BriefReviewRequest(
 		Integer maximumLeadTimeDays,
 
 		@Positive
-		Double maximumPurchaseCostUsd
+		Double maximumPurchaseCostUsd,
+
+		/**
+		 * AI 개발팀 확인(2026-09-16): 진단 모드는 prepare 단계부터 지정해야 한다 - 여기서 받은
+		 * review_id만 진단 모드 evaluate/reassess에 재사용할 수 있다(모드가 다르면 409).
+		 */
+		Boolean diagnosticOnly
 ) {
 
 	public static BriefReviewRequest empty() {
-		return new BriefReviewRequest(null, null, null);
+		return new BriefReviewRequest(null, null, null, null);
+	}
+
+	public boolean isDiagnosticOnly() {
+		return Boolean.TRUE.equals(diagnosticOnly);
 	}
 }
