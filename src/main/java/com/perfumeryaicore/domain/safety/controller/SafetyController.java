@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.safety.dto.response.SafetyEvaluationResponse;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
 import com.perfumeryaicore.domain.safety.service.RegulatoryEvidenceService;
 import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
@@ -89,5 +90,12 @@ public class SafetyController {
 			@PathVariable Long candidateId,
 			@Valid @RequestBody AssessEvidenceApiRequest request) {
 		return ApiResponse.success(regulatoryEvidenceService.assess(candidateId, principal.id(), request));
+	}
+
+	@Operation(summary = "조향 AI 지원 제품군·연산별 등록/가동 여부·모델 버전 (v2)")
+	@GetMapping("/ai/capabilities")
+	public ApiResponse<AiCapabilitiesResponse> aiCapabilities(
+			@AuthenticationPrincipal MemberPrincipal principal) {
+		return ApiResponse.success(regulatoryEvidenceService.capabilities());
 	}
 }
