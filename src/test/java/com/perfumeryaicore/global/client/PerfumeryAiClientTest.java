@@ -8,6 +8,7 @@ import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
+import com.perfumeryaicore.global.client.dto.DiagnosticCandidate;
 import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
 import com.perfumeryaicore.global.client.dto.EvidenceLine;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
@@ -393,11 +394,23 @@ class PerfumeryAiClientTest {
 		assertThat(calls.get()).isEqualTo(2);
 	}
 
+	/** AI 개발팀 확인(2026-09-16): diagnostic_only=true는 근거 미등록 상태에서도 HTTP 200, 결과는 diagnostic_candidates에 담긴다. */
 	@Test
-	void evaluateFormula_blocked_response_is_kept_as_a_raw_tree_without_assuming_fields() {
+	void evaluateFormula_diagnostic_success_parses_diagnostic_candidates_not_the_recommendation_list() {
 		AtomicInteger calls = new AtomicInteger();
 		String response = """
-				{"detail":{"status":"abstained","reason":"missing_scoped_evidence"}}""";
+				{"schema_version":"rd-candidates-2","review_id":"review-1","contract":{},
+				 "status":"abstained","candidates":[],
+				 "diagnostic_candidates":[{"candidate_id":"c1","formula_id":"f1","status":"abstained",
+				   "assessment_kind":"generated_candidate","target_match_score":91.11,
+				   "target_match_unit":"model_points_0_100","product_concentration_percent":15.0,
+				   "material_count":21,"recommendation_allowed":false,
+				   "result":{"status":"no_safe_match","recipe":[],"closest_candidate":[{"ingredient_id":"x"}]},
+				   "rd_gates":{"registered_evidence":false,"existing_safety":true,
+				               "scientific_domain":false,"profile_and_persistence":false}}],
+				 "state_changed":false,"manufacturing_approval":false,"diagnostic_only":true,
+				 "scope":"explicit_public_source_diagnostic_not_operational_recommendation",
+				 "input_snapshot":{},"result_id":"result-1"}""";
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
 		EvaluateFormulaRequest request = EvaluateFormulaRequest.diagnostic(
 				JSON.createObjectNode(), JSON.createObjectNode(), "a".repeat(64));
@@ -405,7 +418,13 @@ class PerfumeryAiClientTest {
 		var result = client.evaluateFormula(request, "trace-1", null);
 
 		assertThat(calls.get()).isEqualTo(1);
-		assertThat(result.parsed().get("detail").get("status").asString()).isEqualTo("abstained");
+		assertThat(result.parsed().isDiagnostic()).isTrue();
+		assertThat(result.parsed().candidates()).isEmpty();
+		assertThat(result.parsed().diagnosticCandidates()).hasSize(1);
+		DiagnosticCandidate candidate = result.parsed().diagnosticCandidates().get(0);
+		assertThat(candidate.isRecommendationAllowed()).isFalse();
+		assertThat(candidate.result().get("status").asString()).isEqualTo("no_safe_match");
+		assertThat(candidate.result().get("recipe").isEmpty()).isTrue();
 	}
 
 	@Test
@@ -423,10 +442,17 @@ class PerfumeryAiClientTest {
 	}
 
 	@Test
-	void reassessFormula_success_is_kept_as_a_raw_tree() {
+	void reassessFormula_diagnostic_success_parses_diagnostic_candidates() {
 		AtomicInteger calls = new AtomicInteger();
 		String response = """
-				{"status":"prototype_ready","formula_id":"x"}""";
+				{"schema_version":"rd-candidates-2","review_id":"review-2","contract":{},
+				 "status":"abstained","candidates":[],
+				 "diagnostic_candidates":[{"candidate_id":"c2","formula_id":"f2","status":"abstained",
+				   "assessment_kind":"fixed_formula","recommendation_allowed":false,
+				   "result":{"status":"no_safe_match","recipe":[],"closest_candidate":[]}}],
+				 "state_changed":false,"manufacturing_approval":false,"diagnostic_only":true,
+				 "scope":"explicit_public_source_diagnostic_not_operational_recommendation",
+				 "input_snapshot":{},"result_id":"result-2"}""";
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
 		ReassessFormulaRequest request = ReassessFormulaRequest.diagnostic(
 				JSON.createObjectNode(), JSON.createObjectNode(),
@@ -435,7 +461,9 @@ class PerfumeryAiClientTest {
 		var result = client.reassessFormula(request, "trace-1", null);
 
 		assertThat(calls.get()).isEqualTo(1);
-		assertThat(result.parsed().get("status").asString()).isEqualTo("prototype_ready");
+		assertThat(result.parsed().isDiagnostic()).isTrue();
+		assertThat(result.parsed().diagnosticCandidates()).hasSize(1);
+		assertThat(result.parsed().diagnosticCandidates().get(0).isRecommendationAllowed()).isFalse();
 	}
 
 	@Test

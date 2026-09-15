@@ -4,6 +4,8 @@ import com.perfumeryaicore.domain.request.dto.request.AssignWorkChecklistItemReq
 import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
 import com.perfumeryaicore.domain.request.dto.request.CreateFragranceRequestRequest;
+import com.perfumeryaicore.domain.request.dto.request.EvaluateDiagnosticRequest;
+import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateFragranceRequestRequest;
 import com.perfumeryaicore.domain.request.dto.request.UpdateWorkChecklistItemRequest;
 import com.perfumeryaicore.domain.request.dto.response.FragranceRequestResponse;
@@ -16,6 +18,7 @@ import com.perfumeryaicore.domain.request.service.BriefReviewService;
 import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.domain.request.service.WorkChecklistService;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.EvaluationResponse;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.PageResponse;
@@ -155,5 +158,24 @@ public class FragranceRequestController {
 			@PathVariable Long requestId,
 			@Valid @RequestBody BriefClarifyRequest request) {
 		return ApiResponse.success(briefReviewService.clarify(requestId, principal.id(), request));
+	}
+
+	@Operation(summary = "진단 전용 후보 평가 (v2) — 근거 미등록 상태에서도 시도 가능하나 정식 승인 후보가 아니다. "
+			+ "confirmedReviewId는 diagnosticOnly=true로 호출한 brief-review의 review_id여야 한다")
+	@PostMapping("/requests/{requestId}/diagnostic-evaluate")
+	public ApiResponse<EvaluationResponse> diagnosticEvaluate(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@Valid @RequestBody EvaluateDiagnosticRequest request) {
+		return ApiResponse.success(briefReviewService.evaluateDiagnostic(requestId, principal.id(), request));
+	}
+
+	@Operation(summary = "진단 전용 고정 배합 재평가 (v2) — evaluate와 같은 제약, lines로 고정 배합을 지정한다")
+	@PostMapping("/requests/{requestId}/diagnostic-reassess")
+	public ApiResponse<EvaluationResponse> diagnosticReassess(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long requestId,
+			@Valid @RequestBody ReassessDiagnosticRequest request) {
+		return ApiResponse.success(briefReviewService.reassessDiagnostic(requestId, principal.id(), request));
 	}
 }

@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.perfumeryaicore.domain.request.dto.request.BriefClarifyRequest;
 import com.perfumeryaicore.domain.request.dto.request.BriefReviewRequest;
+import com.perfumeryaicore.domain.request.dto.request.EvaluateDiagnosticRequest;
+import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.Intensity;
 import com.perfumeryaicore.domain.request.entity.Longevity;
@@ -16,8 +18,12 @@ import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
+import com.perfumeryaicore.global.client.dto.EvaluationResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceLine;
 import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
+import com.perfumeryaicore.global.client.dto.ReassessFormulaRequest;
 import com.perfumeryaicore.global.common.ProductCategory;
 import com.perfumeryaicore.global.common.TargetRegion;
 import java.util.List;
@@ -78,7 +84,7 @@ class BriefReviewServiceTest {
 		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
 				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
 
-		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(1000.0, null, null));
+		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(1000.0, null, null, null));
 
 		JsonNode policy = captor.getValue().evidencePolicy();
 		assertThat(policy.get("finished_batch_mass_g").asDouble()).isEqualTo(1000.0);
@@ -97,7 +103,7 @@ class BriefReviewServiceTest {
 				.thenReturn(new PerfumeryAiResult<>("{}", clarifyResponse, 10L));
 
 		BriefClarifyRequest dto = new BriefClarifyRequest(
-				"result-1", Map.of("request.formula.target_region", "EU"), null, null, null);
+				"result-1", Map.of("request.formula.target_region", "EU"), null, null, null, null);
 		ClarifyBriefResponse response = service.clarify(REQUEST_ID, MEMBER_ID, dto);
 
 		assertThat(response.previousResultId()).isEqualTo("result-1");
@@ -115,5 +121,88 @@ class BriefReviewServiceTest {
 		service.prepare(REQUEST_ID, MEMBER_ID, BriefReviewRequest.empty());
 
 		verify(requestService).getAccessibleRequest(eq(REQUEST_ID), eq(MEMBER_ID));
+	}
+
+	/** AI 개발팀 확인(2026-09-16): 진단 모드는 prepare 단계부터 최상위에 지정해야 한다. */
+	@Test
+	void prepare_forwards_the_diagnostic_only_flag_to_the_ai_client() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<PrepareBriefRequest> captor = ArgumentCaptor.forClass(PrepareBriefRequest.class);
+		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
+
+		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(null, null, null, true));
+
+		assertThat(captor.getValue().diagnosticOnly()).isTrue();
+	}
+
+	@Test
+	void prepare_defaults_diagnostic_only_to_unset_when_not_requested() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<PrepareBriefRequest> captor = ArgumentCaptor.forClass(PrepareBriefRequest.class);
+		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
+
+		service.prepare(REQUEST_ID, MEMBER_ID, BriefReviewRequest.empty());
+
+		assertThat(captor.getValue().diagnosticOnly()).isFalse();
+	}
+
+	@Test
+	void clarify_forwards_the_diagnostic_only_flag_to_the_ai_client() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<ClarifyBriefRequest> captor = ArgumentCaptor.forClass(ClarifyBriefRequest.class);
+		ClarifyBriefResponse clarifyResponse = new ClarifyBriefResponse(
+				"rd-clarification-2", "result-1", List.of(), JSON.createObjectNode(),
+				JSON.createObjectNode(), 1, true);
+		when(perfumeryAiClient.clarifyBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", clarifyResponse, 10L));
+
+		BriefClarifyRequest dto = new BriefClarifyRequest("result-1", Map.of("k", "v"), null, null, null, true);
+		service.clarify(REQUEST_ID, MEMBER_ID, dto);
+
+		assertThat(captor.getValue().diagnosticOnly()).isTrue();
+	}
+
+	private EvaluationResponse diagnosticEvaluationResponse(String reviewId) {
+		return new EvaluationResponse("rd-candidates-2", reviewId, JSON.createObjectNode(), "abstained",
+				List.of(), List.of(), false, false, true,
+				"explicit_public_source_diagnostic_not_operational_recommendation",
+				JSON.createObjectNode(), "result-1");
+	}
+
+	/** AI 개발팀 확인(2026-09-16): confirmedReviewId는 diagnostic prepare에서 받은 review_id여야 한다. */
+	@Test
+	void evaluateDiagnostic_forwards_the_confirmed_review_id_and_diagnostic_flag() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<EvaluateFormulaRequest> captor = ArgumentCaptor.forClass(EvaluateFormulaRequest.class);
+		when(perfumeryAiClient.evaluateFormula(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", diagnosticEvaluationResponse("review-9"), 10L));
+
+		EvaluateDiagnosticRequest dto = new EvaluateDiagnosticRequest("a".repeat(64), null, null, null);
+		EvaluationResponse response = service.evaluateDiagnostic(REQUEST_ID, MEMBER_ID, dto);
+
+		assertThat(response.isDiagnostic()).isTrue();
+		assertThat(response.reviewId()).isEqualTo("review-9");
+		assertThat(captor.getValue().confirmedReviewId()).isEqualTo("a".repeat(64));
+		assertThat(captor.getValue().diagnosticOnly()).isTrue();
+	}
+
+	@Test
+	void reassessDiagnostic_forwards_the_fixed_lines_and_confirmed_review_id() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<ReassessFormulaRequest> captor = ArgumentCaptor.forClass(ReassessFormulaRequest.class);
+		when(perfumeryAiClient.reassessFormula(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", diagnosticEvaluationResponse("review-10"), 10L));
+
+		ReassessDiagnosticRequest dto = new ReassessDiagnosticRequest(
+				"b".repeat(64), List.of(new EvidenceLine("linalyl_acetate", 100.0)), null, null, null);
+		EvaluationResponse response = service.reassessDiagnostic(REQUEST_ID, MEMBER_ID, dto);
+
+		assertThat(response.isDiagnostic()).isTrue();
+		assertThat(captor.getValue().confirmedReviewId()).isEqualTo("b".repeat(64));
+		assertThat(captor.getValue().lines()).hasSize(1);
+		assertThat(captor.getValue().lines().get(0).ingredientId()).isEqualTo("linalyl_acetate");
+		assertThat(captor.getValue().diagnosticOnly()).isTrue();
 	}
 }
