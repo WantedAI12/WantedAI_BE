@@ -3,14 +3,17 @@ package com.perfumeryaicore.global.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceLine;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
 import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
+import java.util.List;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -299,5 +302,59 @@ class PerfumeryAiClientTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.AI_SERVICE_ERROR);
 		assertThat(calls.get()).isEqualTo(2);
+	}
+
+	@Test
+	void evidenceStatus_success_parses_top_level_flags() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"schema_version":"rd-evidence-status-1","contract":{},
+				 "operator_bundle_registered":false,"public_sources_registered":true,
+				 "public_source_diagnostics_available":true,"default_operational_gate_bypassed":false,
+				 "coverage":{"active_material_count":3830}}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+
+		var result = client.evidenceStatus("trace-1");
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().publicSourcesRegistered()).isTrue();
+		assertThat(result.parsed().operatorBundleRegistered()).isFalse();
+	}
+
+	@Test
+	void evidenceCoverage_success_parses_pagination_fields() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"active_material_count":3830,"public_price_connected_count":243,
+				 "no_public_price_count":3587,"operationally_complete_count":0,
+				 "source_products_examined":1212,"scope":"all_active_materials_missing_entries_preserved",
+				 "offset":0,"limit":100,"items":[{"ingredient_id":"aldehyde_c10"}],"has_more":true}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+
+		var result = client.evidenceCoverage(0, 100, "trace-1");
+
+		assertThat(result.parsed().items()).hasSize(1);
+		assertThat(result.parsed().hasMore()).isTrue();
+		assertThat(result.parsed().activeMaterialCount()).isEqualTo(3830);
+	}
+
+	@Test
+	void assessEvidence_blocked_status_carries_blockers() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"schema_version":"rd-evidence-assessment-1","status":"blocked","gate_passed":false,
+				 "blockers":[{"ingredient_id":"linalyl_acetate","reason":"missing_scoped_evidence"}],
+				 "manufacturing_approval":false,"result_id":"result-9"}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+		AssessEvidenceRequest request = new AssessEvidenceRequest(
+				List.of(new EvidenceLine("linalyl_acetate", 100.0)), "EU", "eau_de_parfum", 15.0, 180.0, null,
+				JSON.createObjectNode());
+
+		var result = client.assessEvidence(request, "trace-1", null);
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().isBlocked()).isTrue();
+		assertThat(result.parsed().blockers()).hasSize(1);
+		assertThat(result.parsed().blockers().get(0).ingredientId()).isEqualTo("linalyl_acetate");
 	}
 }
