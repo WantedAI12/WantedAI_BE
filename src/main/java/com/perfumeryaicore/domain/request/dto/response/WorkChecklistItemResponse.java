@@ -9,6 +9,9 @@ public record WorkChecklistItemResponse(
 		boolean completed,
 		LocalDateTime completedAt,
 		Long completedBy,
+		Long assignedTo,
+		Long assignedBy,
+		LocalDateTime assignedAt,
 		int revision
 ) {
 
@@ -18,6 +21,9 @@ public record WorkChecklistItemResponse(
 				item.isCompleted(),
 				item.getCompletedAt(),
 				item.getCompletedBy(),
+				item.getAssignedTo(),
+				item.getAssignedBy(),
+				item.getAssignedAt(),
 				item.getRevision());
 	}
 }

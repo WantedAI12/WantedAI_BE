@@ -125,6 +125,67 @@ class WorkChecklistServiceTest {
 	}
 
 	@Test
+	void assign_rejects_a_stale_expected_revision() {
+		when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request(REQUEST_ID)));
+		when(accessGuard.isMember(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+		WorkChecklistItem item = WorkChecklistItem.create(REQUEST_ID, WorkChecklistItemType.FRAGRANCE_BRIEF);
+		item.setCompleted(true, 0, MEMBER_ID); // revision is now 1
+		when(checklistItemRepository.findByRequestIdAndItemType(REQUEST_ID, WorkChecklistItemType.FRAGRANCE_BRIEF))
+				.thenReturn(Optional.of(item));
+
+		assertThatThrownBy(() -> service.assign(REQUEST_ID, MEMBER_ID,
+				WorkChecklistItemType.FRAGRANCE_BRIEF, 2L, 0))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.WORK_CHECKLIST_ITEM_CONFLICT);
+	}
+
+	@Test
+	void assign_rejects_an_assignee_outside_the_project() {
+		when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request(REQUEST_ID)));
+		when(accessGuard.isMember(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+		when(accessGuard.isMember(PROJECT_ID, 999L)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.assign(REQUEST_ID, MEMBER_ID,
+				WorkChecklistItemType.FRAGRANCE_BRIEF, 999L, 0))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_MEMBER_NOT_FOUND);
+		verify(checklistItemRepository, never()).findByRequestIdAndItemType(any(), any());
+	}
+
+	@Test
+	void assign_sets_the_assignee_and_advances_the_shared_revision() {
+		when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request(REQUEST_ID)));
+		when(accessGuard.isMember(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+		WorkChecklistItem item = WorkChecklistItem.create(REQUEST_ID, WorkChecklistItemType.SAFETY_REVIEW);
+		when(checklistItemRepository.findByRequestIdAndItemType(REQUEST_ID, WorkChecklistItemType.SAFETY_REVIEW))
+				.thenReturn(Optional.of(item));
+
+		var response = service.assign(REQUEST_ID, MEMBER_ID, WorkChecklistItemType.SAFETY_REVIEW, 2L, 0);
+
+		assertThat(response.assignedTo()).isEqualTo(2L);
+		assertThat(response.assignedBy()).isEqualTo(MEMBER_ID);
+		assertThat(response.revision()).isEqualTo(1);
+	}
+
+	@Test
+	void assign_with_no_assignee_clears_the_assignment() {
+		when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request(REQUEST_ID)));
+		when(accessGuard.isMember(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+		WorkChecklistItem item = WorkChecklistItem.create(REQUEST_ID, WorkChecklistItemType.SAFETY_REVIEW);
+		item.assignTo(2L, 0, MEMBER_ID); // revision is now 1
+		when(checklistItemRepository.findByRequestIdAndItemType(REQUEST_ID, WorkChecklistItemType.SAFETY_REVIEW))
+				.thenReturn(Optional.of(item));
+
+		var response = service.assign(REQUEST_ID, MEMBER_ID, WorkChecklistItemType.SAFETY_REVIEW, null, 1);
+
+		assertThat(response.assignedTo()).isNull();
+		assertThat(response.assignedBy()).isNull();
+		assertThat(response.revision()).isEqualTo(2);
+	}
+
+	@Test
 	void workProgress_reflects_completed_over_total() {
 		when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request(REQUEST_ID)));
 		when(accessGuard.isMember(PROJECT_ID, MEMBER_ID)).thenReturn(true);

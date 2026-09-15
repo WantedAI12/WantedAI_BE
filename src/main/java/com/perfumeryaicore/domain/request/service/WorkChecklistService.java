@@ -70,6 +70,25 @@ public class WorkChecklistService {
 		return WorkChecklistItemResponse.from(item);
 	}
 
+	/**
+	 * 담당자를 배정하거나({@code assigneeId} 있음) 해제한다({@code null}). 배정 대상은 그 요청이
+	 * 속한 프로젝트의 멤버여야 한다 - 다른 프로젝트 사람에게 작업을 떠넘기는 실수를 막는다.
+	 */
+	@Transactional
+	public WorkChecklistItemResponse assign(Long requestId, Long memberId, WorkChecklistItemType itemType,
+			Long assigneeId, int expectedRevision) {
+		FragranceRequest request = getAccessibleRequest(requestId, memberId);
+		if (assigneeId != null && !accessGuard.isMember(request.getProjectId(), assigneeId)) {
+			throw new BusinessException(ErrorCode.PROJECT_MEMBER_NOT_FOUND);
+		}
+		WorkChecklistItem item = checklistItemRepository.findByRequestIdAndItemType(requestId, itemType)
+				.orElseThrow(() -> new BusinessException(ErrorCode.WORK_CHECKLIST_ITEM_NOT_FOUND));
+		item.assignTo(assigneeId, expectedRevision, memberId);
+		log.info("[REQUEST] checklist request={} item={} assignedTo={} by={} revision={}",
+				requestId, itemType, assigneeId, memberId, item.getRevision());
+		return WorkChecklistItemResponse.from(item);
+	}
+
 	public WorkProgressResponse workProgress(Long requestId, Long memberId) {
 		getAccessibleRequest(requestId, memberId);
 		List<WorkChecklistItem> items = checklistItemRepository.findByRequestIdOrderByItemTypeAsc(requestId);

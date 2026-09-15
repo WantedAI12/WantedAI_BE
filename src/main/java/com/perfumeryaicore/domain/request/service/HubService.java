@@ -21,8 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
  * "허브 요약 데이터"에 해당한다 - "최근 활동 피드"는 여러 도메인에 걸친 이벤트 집계가 필요해
  * 범위가 커서 다루지 않는다.
  *
- * <p>체크리스트 항목엔 아직 담당자(개인 배정) 개념이 없어, "내 체크리스트 목록"은 "내가 속한
- * 프로젝트의 모든 향수 작업 중 미완료 항목 전체"로 해석한다.
+ * <p>"내 체크리스트 목록"은 실제로 나에게 배정된(assignedTo) 미완료 항목이다. 배정되지 않은
+ * 항목은 아직 담당자가 없는 상태이므로 여기 포함하지 않는다(BE-109 이전에는 담당자 배정이
+ * 없어 "내가 속한 프로젝트의 모든 미완료 항목"으로 넓게 해석했었다).
  */
 @Service
 @RequiredArgsConstructor
@@ -47,12 +48,12 @@ public class HubService {
 		List<Long> projectIds = projects.stream().map(ProjectResponse::projectId).toList();
 		List<HubChecklistItemResponse> pendingChecklistItems = projectIds.isEmpty()
 				? List.of()
-				: pendingChecklistItems(projectIds);
+				: myPendingChecklistItems(projectIds, memberId);
 
 		return new HubSummaryResponse(projects, dueSoonProjects, pendingChecklistItems);
 	}
 
-	private List<HubChecklistItemResponse> pendingChecklistItems(List<Long> projectIds) {
+	private List<HubChecklistItemResponse> myPendingChecklistItems(List<Long> projectIds, Long memberId) {
 		List<FragranceRequest> works = requestRepository.findByProjectIdIn(projectIds);
 		if (works.isEmpty()) {
 			return List.of();
@@ -62,7 +63,7 @@ public class HubService {
 
 		List<Long> requestIds = works.stream().map(FragranceRequest::getId).toList();
 		return checklistItemRepository.findByRequestIdIn(requestIds).stream()
-				.filter(item -> !item.isCompleted())
+				.filter(item -> !item.isCompleted() && memberId.equals(item.getAssignedTo()))
 				.map(item -> new HubChecklistItemResponse(
 						projectIdByRequestId.get(item.getRequestId()), item.getRequestId(), item.getItemType()))
 				.toList();
