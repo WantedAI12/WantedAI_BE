@@ -116,6 +116,11 @@ public class Candidate extends BaseTimeEntity {
 	/**
 	 * 실험 워크플로 상태 전이. 순서만 검증한다 — 안전 게이트 승인 여부 같은 다른 도메인
 	 * 조건은 experiment 도메인(호출부)이 이 메서드를 부르기 전에 확인한다.
+	 *
+	 * <p>BE-103: CONFIRMED_FOR_EXPERIMENT -> UNDER_REVIEW(선택 해제)만 예외적으로 되돌아갈 수
+	 * 있다 — 실수로 확정한 후보를 REJECTED(반려)로 남기지 않고 되돌리기 위함이다. 재확정은
+	 * 기존 UNDER_REVIEW -> CONFIRMED_FOR_EXPERIMENT 전이를 그대로 다시 타므로 안전 게이트
+	 * 재확인이 자동으로 적용된다. IN_SENSORY_TEST 이후로 진행된 후보는 되돌릴 수 없다.
 	 */
 	public void transitionStatus(CandidateStatus target) {
 		if (!isValidTransition(status, target)) {
@@ -136,7 +141,7 @@ public class Candidate extends BaseTimeEntity {
 			case REJECTED -> from == CandidateStatus.UNDER_REVIEW
 					|| from == CandidateStatus.CONFIRMED_FOR_EXPERIMENT
 					|| from == CandidateStatus.IN_SENSORY_TEST;
-			case UNDER_REVIEW -> false;
+			case UNDER_REVIEW -> from == CandidateStatus.CONFIRMED_FOR_EXPERIMENT;
 		};
 	}
 

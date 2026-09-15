@@ -20,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 후보를 실험 후보로 확정하거나 실험 상태를 바꾼다. 상태 순서 검증은 formula 도메인의
  * {@code Candidate}가 맡고, 여기서는 도메인을 가로지르는 규칙(안전 게이트 승인)만 확인한다.
+ *
+ * <p>BE-103: CONFIRMED_FOR_EXPERIMENT 상태의 후보는 UNDER_REVIEW로 선택 해제할 수 있고,
+ * 이후 다시 확정(재선택)하면 안전 게이트를 다시 확인한다 — 별도 API 없이 이 메서드에
+ * target=UNDER_REVIEW/CONFIRMED_FOR_EXPERIMENT를 반복 호출하는 것으로 동작한다.
  */
 @Slf4j
 @Service

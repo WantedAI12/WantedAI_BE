@@ -117,6 +117,37 @@ class ExperimentStatusServiceTest {
 		verify(candidateService).transitionStatus(500L, 1L, CandidateStatus.REJECTED);
 	}
 
+	/** BE-103: 확정된 후보를 UNDER_REVIEW로 선택 해제할 때는 안전 게이트를 다시 확인하지 않는다. */
+	@Test
+	void deselecting_a_confirmed_candidate_back_to_under_review_does_not_consult_the_safety_gate() {
+		when(candidateService.get(500L, 1L))
+				.thenReturn(new CandidateResponse(
+						500L, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null, null, null, null));
+		when(logRepository.save(any(ExperimentStatusLog.class)))
+				.thenReturn(logEntry(CandidateStatus.UNDER_REVIEW));
+
+		ExperimentStatusLogResponse response =
+				service.changeStatus(500L, 1L, CandidateStatus.UNDER_REVIEW, "잘못 확정하여 되돌림");
+
+		verify(approvalGateService, never()).isApprovedForVersion(any(), any());
+		verify(candidateService).transitionStatus(500L, 1L, CandidateStatus.UNDER_REVIEW);
+		assertThat(response.status()).isEqualTo(CandidateStatus.UNDER_REVIEW);
+	}
+
+	/** BE-103: 실제 상태 머신 검증(entity)이 되돌리기를 거부하면 그대로 전파된다 — 예: IN_SENSORY_TEST 이후. */
+	@Test
+	void reselecting_after_deselect_requires_the_safety_gate_again() {
+		when(candidateService.get(500L, 1L))
+				.thenReturn(new CandidateResponse(
+						500L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
+		when(candidateService.getCurrentVersionId(500L, 1L)).thenReturn(900L);
+		when(approvalGateService.isApprovedForVersion(500L, 900L)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.changeStatus(500L, 1L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.SAFETY_GATE_NOT_APPROVED);
+	}
+
 	/** BE-004: 실험 확정/상태 전이는 PERFUMER/FRAGRANCE_RND/PROJECT_MANAGER만 할 수 있다. */
 	@Test
 	void a_non_transition_role_is_forbidden_from_changing_status() {

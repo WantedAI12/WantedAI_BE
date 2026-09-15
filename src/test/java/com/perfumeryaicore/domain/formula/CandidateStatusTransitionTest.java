@@ -54,12 +54,7 @@ class CandidateStatusTransitionTest {
 	}
 
 	@Test
-	void cannot_move_back_to_under_review_or_out_of_terminal_states() {
-		Candidate confirmed = candidateAt(CandidateStatus.CONFIRMED_FOR_EXPERIMENT);
-		assertThatThrownBy(() -> confirmed.transitionStatus(CandidateStatus.UNDER_REVIEW))
-				.isInstanceOf(BusinessException.class)
-				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_STATUS_TRANSITION_INVALID);
-
+	void cannot_move_out_of_terminal_states_or_back_from_beyond_confirmation() {
 		Candidate approved = candidateAt(CandidateStatus.APPROVED);
 		assertThatThrownBy(() -> approved.transitionStatus(CandidateStatus.REJECTED))
 				.isInstanceOf(BusinessException.class)
@@ -69,6 +64,28 @@ class CandidateStatusTransitionTest {
 		assertThatThrownBy(() -> rejected.transitionStatus(CandidateStatus.UNDER_REVIEW))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_STATUS_TRANSITION_INVALID);
+
+		Candidate inSensoryTest = candidateAt(CandidateStatus.IN_SENSORY_TEST);
+		assertThatThrownBy(() -> inSensoryTest.transitionStatus(CandidateStatus.UNDER_REVIEW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_STATUS_TRANSITION_INVALID);
+
+		Candidate approvedBack = candidateAt(CandidateStatus.APPROVED);
+		assertThatThrownBy(() -> approvedBack.transitionStatus(CandidateStatus.UNDER_REVIEW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_STATUS_TRANSITION_INVALID);
+	}
+
+	/** BE-103: 실험 후보 확정 직후에는 선택 해제(UNDER_REVIEW로 되돌리기)가 가능하고, 재확정도 다시 할 수 있다. */
+	@Test
+	void confirmed_for_experiment_can_be_deselected_back_to_under_review_and_reselected() {
+		Candidate candidate = candidateAt(CandidateStatus.CONFIRMED_FOR_EXPERIMENT);
+
+		candidate.transitionStatus(CandidateStatus.UNDER_REVIEW);
+		assertThat(candidate.getStatus()).isEqualTo(CandidateStatus.UNDER_REVIEW);
+
+		candidate.transitionStatus(CandidateStatus.CONFIRMED_FOR_EXPERIMENT);
+		assertThat(candidate.getStatus()).isEqualTo(CandidateStatus.CONFIRMED_FOR_EXPERIMENT);
 	}
 
 	@Test
