@@ -60,6 +60,10 @@ public record FormulaGenerationResponse(
 		@JsonProperty("scientific_model_version")
 		String scientificModelVersion,
 
+		/** V80(2026-09-15)에서 새로 추가된 필드 - 이전 버전(V69) 응답에는 없었다. */
+		@JsonProperty("scientific_sampling_version")
+		String scientificSamplingVersion,
+
 		@JsonProperty("deployment")
 		Deployment deployment
 ) {

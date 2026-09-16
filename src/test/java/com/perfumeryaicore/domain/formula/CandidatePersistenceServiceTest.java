@@ -55,7 +55,7 @@ class CandidatePersistenceServiceTest {
 						new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99),
 						new RecipeLine("iso_e_super", "Iso E Super", "base", 20.0, 3.0, 85.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary",
-				null, "headspace-olfactory-twin-2.2",
+				null, "headspace-olfactory-twin-2.2", null,
 				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
 		PerfumeryAiResult result = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 
@@ -170,7 +170,7 @@ class CandidatePersistenceServiceTest {
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
 				"prototype_ready", null, null, null, null, List.of(),
-				null, null, null, null, null, null, null, null);
+				null, null, null, null, null, null, null, null, null);
 		PerfumeryAiResult result = new PerfumeryAiResult("{}", parsed, 100L);
 
 		service.persist(5L, 10L, 1L, 77L, result);
