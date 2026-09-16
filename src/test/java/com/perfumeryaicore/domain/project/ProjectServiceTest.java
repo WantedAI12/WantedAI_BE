@@ -77,6 +77,24 @@ class ProjectServiceTest {
 		assertThat(captor.getValue().getMemberId()).isEqualTo(ACTOR_ID);
 	}
 
+	/**
+	 * 게스트 모드: ORG_ADMIN은 요청 작성 쓰기 역할(WRITE_ROLES)이 아니라서, 게스트가 ORG_ADMIN으로
+	 * 시작하면 초대할 팀원도 없이 자기 프로젝트에서 요청 하나 못 만드는 상태가 된다 - PERFUMER로
+	 * 시작해야 한다.
+	 */
+	@Test
+	void create_registers_a_guest_creator_as_perfumer_instead_of_org_admin() {
+		when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+		Member guest = Member.createGuest(
+				"guest+z@guest.perfumery.local", "hash", java.time.LocalDateTime.now().plusHours(24));
+		when(memberRepository.findById(ACTOR_ID)).thenReturn(Optional.of(guest));
+
+		ProjectResponse res = service.create(ACTOR_ID, new CreateProjectRequest("체험 프로젝트", null, null, null));
+
+		assertThat(res.myRole()).isEqualTo(ProjectRole.PERFUMER);
+	}
+
 	@Test
 	void get_denies_a_non_member() {
 		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, ACTOR_ID))
