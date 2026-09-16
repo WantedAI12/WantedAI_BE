@@ -59,7 +59,7 @@ class CandidateGenerationServiceTest {
 	void setUp() {
 		service = new CandidateGenerationService(fragranceRequestService, jobService, jobExecutor,
 				perfumeryAiClient, formulaRequestMapper, candidatePersistenceService, accessGuard);
-		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
 				.thenReturn(ProjectRole.PERFUMER);
 	}
 
@@ -212,7 +212,7 @@ class CandidateGenerationServiceTest {
 	@Test
 	void a_non_trigger_role_cannot_enqueue_generation() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(confirmedRequest());
-		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.enqueue(5L, 1L))

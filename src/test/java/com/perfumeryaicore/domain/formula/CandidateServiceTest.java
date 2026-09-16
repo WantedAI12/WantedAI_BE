@@ -132,7 +132,7 @@ class CandidateServiceTest {
 		Candidate source = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
 		when(candidateRepository.findById(100L)).thenReturn(Optional.of(source));
 		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
-		when(accessGuard.requireRole(PROJECT_ID, 2L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND,
+		when(accessGuard.requireWriteRole(PROJECT_ID, 2L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND,
 				ProjectRole.PRODUCT_BRAND)).thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.duplicate(100L, 2L, "재검토용"))
@@ -204,7 +204,7 @@ class CandidateServiceTest {
 		Candidate candidate = withId(Candidate.create(1L, PROJECT_ID, 1L, null), 100L);
 		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
 		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
-		when(accessGuard.requireRole(PROJECT_ID, 2L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND,
+		when(accessGuard.requireWriteRole(PROJECT_ID, 2L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND,
 				ProjectRole.PRODUCT_BRAND)).thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.restoreVersion(100L, 2L, 200L))
