@@ -70,9 +70,10 @@ public class SafetyEvaluationMapper {
 		return value.isMissingNode() || value.isNull() ? null : value.asBoolean();
 	}
 
+	/** 숫자가 아닌 값(예: 설명 문자열)이 오면 asDouble()로 잘못 강제 변환하지 않고 null로 둔다. */
 	private static Double number(JsonNode node, String field) {
 		JsonNode value = node.path(field);
-		return value.isMissingNode() || value.isNull() ? null : value.asDouble();
+		return value.isMissingNode() || value.isNull() || !value.isNumber() ? null : value.asDouble();
 	}
 
 	private static JsonNode node(JsonNode node, String field) {

@@ -90,6 +90,30 @@ class PredictionMapperTest {
 		assertThat(response.confidence()).isEqualTo("heuristic_only");
 	}
 
+	/**
+	 * AI팀 확인(2026-09-17): 배포 시점이 어긋난 과거 응답은 simulation_confidence가 숫자가 아닌
+	 * 설명 문자열로 저장돼 있을 수 있다 - isNumber() 없이 asDouble()을 부르면 조회 시 오류가
+	 * 났었다. 숫자가 아니면 null이어야 하고(0으로 대체 금지), 그 설명 문자열은 confidenceKind로
+	 * 별도 보존해야 한다.
+	 */
+	@Test
+	void a_legacy_string_simulation_confidence_does_not_fail_and_is_preserved_separately() {
+		String raw = RAW_RESPONSE.replace("\"simulation_confidence\": 0.58,", "\"simulation_confidence\": \"heuristic_only\",");
+
+		PredictionResponse response = mapper.toResponse(view(raw));
+
+		assertThat(response.simulation().confidence()).isNull();
+		assertThat(response.simulation().confidenceKind()).isEqualTo("heuristic_only");
+	}
+
+	@Test
+	void a_numeric_simulation_confidence_has_no_confidence_kind() {
+		PredictionResponse response = mapper.toResponse(view(RAW_RESPONSE));
+
+		assertThat(response.simulation().confidence()).isEqualTo(0.58);
+		assertThat(response.simulation().confidenceKind()).isNull();
+	}
+
 	@Test
 	void unparsable_raw_response_yields_null_scalars_without_failing() {
 		PredictionResponse response = mapper.toResponse(view("not json"));
