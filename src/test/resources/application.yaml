@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:perfumery;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+jwt:
+  secret: test-only-secret-value-that-is-definitely-longer-than-32-bytes-000
+  access-token-validity-seconds: 3600
+  refresh-token-validity-seconds: 1209600
+
+security:
+  login:
+    max-attempts: 5
+    lockout-duration-seconds: 900
+
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:5173
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+ai:
+  modal:
+    base-url: http://localhost:0
+    auth-token: ""
+    connect-timeout: 1s
+    response-timeout: 2s
+    requests-per-minute: 30
+    max-retries: 1
+
+aws:
+  s3:
+    bucket: test-bucket
+    region: ap-northeast-2
+  ses:
+    region: ap-northeast-2
+    sender-email: no-reply@test.local
+
+app:
+  frontend-base-url: http://localhost:3000

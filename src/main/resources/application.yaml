@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: Perfumery
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:perfumery}?createDatabaseIfNotExist=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  # 스키마 마이그레이션(BE-083)은 운영 프로필에서만 켠다 - 로컬/개발 DB는 이미 ddl-auto: update로
+  # 만들어진 테이블이 있어 Flyway가 "비어 있지 않은 스키마"로 거부하기 때문이다.
+  # 엔티티를 바꾸면 src/main/resources/db/migration에 다음 버전 SQL을 반드시 같이 추가할 것.
+  flyway:
+    enabled: false
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+server:
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 비로그인 상태에선 UP/DOWN만 보이고 DB 연결 등 상세 정보는 인증된 요청에만 노출한다
+      # - /actuator/health는 로드밸런서 등이 인증 없이 호출할 수 있어야 해서 SecurityConfig
+      # PUBLIC_PATHS에 넣었다(BE-089).
+      show-details: when-authorized
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-only-secret-change-me-to-a-long-random-value-at-least-32-bytes}
+  access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}
+  refresh-token-validity-seconds: ${JWT_REFRESH_TTL:1209600}
+
+security:
+  login:
+    max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+    lockout-duration-seconds: ${LOGIN_LOCKOUT_SECONDS:900}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+ai:
+  modal:
+    base-url: ${AI_MODAL_BASE_URL:https://junseong2im--perfumery-ai-core-web.modal.run}
+    # Modal Proxy Token 전체 문자열 "wk-<id>.ws-<secret>". 비우면 AI 호출이 설정 오류로 처리됨.
+    # 소스/저장소에 실제 값을 넣지 말고 환경변수·Secret Manager로만 주입할 것.
+    auth-token: ${AI_MODAL_AUTH_TOKEN:}
+    connect-timeout: ${AI_MODAL_CONNECT_TIMEOUT:10s}
+    # AI 개발팀 확인(2026-09-15): 추론 큐 대기 기본 110초 + Modal 함수 자체 타임아웃 300초.
+    # 정상 요청도 300초 가까이 걸릴 수 있어, 그보다 짧은 클라이언트 타임아웃은 정상 응답을
+    # 우리 쪽에서 먼저 끊어버리는 오탐 실패를 만든다. 305초로 올려 여유를 둔다.
+    response-timeout: ${AI_MODAL_RESPONSE_TIMEOUT:305s}
+    requests-per-minute: ${AI_MODAL_RPM:30}
+    max-retries: ${AI_MODAL_MAX_RETRIES:1}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:perfumery-studio-files}
+    region: ${AWS_REGION:ap-northeast-2}
+    # 자격증명은 여기 없음 — AWS SDK 기본 체인(EC2 IAM 인스턴스 역할 → 환경변수
+    # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY → 자격증명 파일)을 그대로 쓴다.
+  ses:
+    region: ${AWS_REGION:ap-northeast-2}
+    # SES에서 발신 도메인/주소 인증(verified identity)이 끝나야 실제 발송이 성공한다 — 운영 설정은 별도.
+    sender-email: ${AWS_SES_SENDER_EMAIL:no-reply@perfumery.studio}
+
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}

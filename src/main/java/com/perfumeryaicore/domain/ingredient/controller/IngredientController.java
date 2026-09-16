@@ -1,0 +1,142 @@
+package com.perfumeryaicore.domain.ingredient.controller;
+
+import com.perfumeryaicore.domain.ingredient.dto.request.BulkImportIngredientMastersRequest;
+import com.perfumeryaicore.domain.ingredient.dto.request.CatalogSyncRequest;
+import com.perfumeryaicore.domain.ingredient.dto.request.RegisterIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.request.UpdateIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.response.BulkImportResultResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.CatalogSyncResultResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.ImportFailureResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.IngredientDetailResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.IngredientMasterResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.IngredientResponse;
+import com.perfumeryaicore.domain.ingredient.service.CatalogSyncService;
+import com.perfumeryaicore.domain.ingredient.service.IngredientMasterService;
+import com.perfumeryaicore.domain.ingredient.service.IngredientQueryService;
+import com.perfumeryaicore.domain.job.dto.response.JobResponse;
+import com.perfumeryaicore.global.response.ApiResponse;
+import com.perfumeryaicore.global.response.PageResponse;
+import com.perfumeryaicore.global.security.MemberPrincipal;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "Ingredient")
+@RestController
+@RequiredArgsConstructor
+public class IngredientController {
+
+	private final IngredientQueryService ingredientQueryService;
+	private final CatalogSyncService catalogSyncService;
+	private final IngredientMasterService ingredientMasterService;
+
+	@Operation(summary = "원료 목록/검색 (생성된 조향식에서 관측된 원료의 로컬 미러, 프로젝트 범위)")
+	@GetMapping("/ingredients")
+	public ApiResponse<List<IngredientResponse>> list(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam Long projectId,
+			@RequestParam(required = false) String query,
+			@RequestParam(required = false) String pyramid) {
+		return ApiResponse.success(ingredientQueryService.list(principal.id(), projectId, query, pyramid));
+	}
+
+	@Operation(summary = "카탈로그 동기화 실행 (비동기) — FRAGRANCE_RND / ORG_ADMIN")
+	@PostMapping("/ingredients/catalog-sync")
+	public ResponseEntity<ApiResponse<JobResponse>> catalogSync(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody CatalogSyncRequest request) {
+		return ResponseEntity.status(HttpStatus.ACCEPTED)
+				.body(ApiResponse.success(catalogSyncService.sync(principal.id(), request.projectId())));
+	}
+
+	@Operation(summary = "카탈로그 동기화 작업 상태·통계 조회")
+	@GetMapping("/ingredients/catalog-sync/{jobId}")
+	public ApiResponse<CatalogSyncResultResponse> catalogSyncResult(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long jobId) {
+		return ApiResponse.success(catalogSyncService.getResult(jobId, principal.id()));
+	}
+
+	@Operation(summary = "원료 상세 (관측 단가·가용성·사용 후보, 프로젝트 범위)")
+	@GetMapping("/ingredients/{ingredientId}")
+	public ApiResponse<IngredientDetailResponse> get(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam Long projectId,
+			@PathVariable String ingredientId) {
+		return ApiResponse.success(ingredientQueryService.get(principal.id(), projectId, ingredientId));
+	}
+
+	@Operation(summary = "원료 마스터 등록 (BE-062, 처방에 쓰인 적 없어도 등록·검색 가능)")
+	@PostMapping("/ingredient-master")
+	public ResponseEntity<ApiResponse<IngredientMasterResponse>> registerMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody RegisterIngredientMasterRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(ingredientMasterService.register(principal.id(), request)));
+	}
+
+	@Operation(summary = "원료 마스터 검색 (이름/CAS 부분 일치, 프로젝트 범위 아님 - 원료는 공용 참조 데이터, 페이지네이션)")
+	@GetMapping("/ingredient-master")
+	public ApiResponse<PageResponse<IngredientMasterResponse>> searchMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@RequestParam(required = false) String query,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(ingredientMasterService.search(query, pageable));
+	}
+
+	@Operation(summary = "원료 마스터 상세 (외부 ID 기준)")
+	@GetMapping("/ingredient-master/{externalId}")
+	public ApiResponse<IngredientMasterResponse> getMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable String externalId) {
+		return ApiResponse.success(ingredientMasterService.get(externalId));
+	}
+
+	@Operation(summary = "원료 마스터 수정 (외부 ID는 여기서 바꿀 수 없음)")
+	@PatchMapping("/ingredient-master/{externalId}")
+	public ApiResponse<IngredientMasterResponse> updateMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable String externalId,
+			@Valid @RequestBody UpdateIngredientMasterRequest request) {
+		return ApiResponse.success(ingredientMasterService.update(externalId, principal.id(), request));
+	}
+
+	@Operation(summary = "원료 마스터 대량 등록 (BE-063~066, 행 단위 부분 성공 — 실패 행은 재처리 큐에 남음)")
+	@PostMapping("/ingredient-master/bulk-import")
+	public ResponseEntity<ApiResponse<BulkImportResultResponse>> bulkImportMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody BulkImportIngredientMastersRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(ingredientMasterService.bulkImport(principal.id(), request.items())));
+	}
+
+	@Operation(summary = "대량 등록 실패 행(재처리 큐) 목록 — 아직 해결되지 않은 것만, 오래된 순")
+	@GetMapping("/ingredient-master/import-failures")
+	public ApiResponse<PageResponse<ImportFailureResponse>> importFailures(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(ingredientMasterService.pendingImportFailures(pageable));
+	}
+
+	@Operation(summary = "대량 등록 실패 행 재처리 (원본 요청으로 다시 등록 시도)")
+	@PostMapping("/ingredient-master/import-failures/{failureId}/retry")
+	public ApiResponse<ImportFailureResponse> retryImportFailure(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long failureId) {
+		return ApiResponse.success(ingredientMasterService.retryImportFailure(failureId, principal.id()));
+	}
+}

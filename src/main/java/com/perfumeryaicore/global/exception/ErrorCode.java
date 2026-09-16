@@ -1,0 +1,117 @@
+package com.perfumeryaicore.global.exception;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+/**
+ * 도메인 공통 에러 코드. API 명세서 부록의 코드 체계를 따른다.
+ */
+@Getter
+@RequiredArgsConstructor
+public enum ErrorCode {
+
+	// 공통
+	VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 유효하지 않습니다."),
+	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
+	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 요청이 먼저 이 자원을 변경했습니다. 최신 상태를 다시 확인한 뒤 시도하세요."),
+	DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "요청이 기존 데이터와 충돌합니다. 중복이거나 참조 관계를 위반했을 수 있습니다."),
+
+	// 인증/회원
+	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
+	INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
+	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
+	INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 Refresh Token입니다."),
+	REFRESH_TOKEN_REUSE_DETECTED(HttpStatus.UNAUTHORIZED,
+			"이미 폐기된 Refresh Token이 재사용되어 해당 계정의 모든 세션을 종료했습니다."),
+	ACCOUNT_LOCKED(HttpStatus.LOCKED, "로그인 실패 횟수를 초과해 계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도하세요."),
+	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
+	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
+	PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
+	PASSWORD_RESET_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 재설정 토큰입니다."),
+
+	// 프로젝트(Project) / 테넌트 · 역할
+	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다."),
+	PROJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 프로젝트의 멤버가 아닙니다."),
+	PROJECT_ROLE_FORBIDDEN(HttpStatus.FORBIDDEN, "이 작업을 수행할 프로젝트 역할 권한이 없습니다."),
+	PROJECT_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트 멤버를 찾을 수 없습니다."),
+	PROJECT_MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 프로젝트에 속한 멤버입니다."),
+	PROJECT_LAST_ADMIN(HttpStatus.CONFLICT, "프로젝트의 마지막 관리자(ORG_ADMIN)는 제거하거나 강등할 수 없습니다."),
+	PROJECT_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트에 연결된 이미지가 없습니다."),
+	PROJECT_IMAGE_ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "이미지 자산을 찾을 수 없습니다."),
+	PROJECT_IMAGE_ASSET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인이 업로드한 이미지만 연결할 수 있습니다."),
+	PROJECT_IMAGE_ASSET_NOT_PENDING(HttpStatus.CONFLICT, "이미 연결되었거나 폐기된 이미지 자산입니다."),
+	PROJECT_IMAGE_UNSUPPORTED_FORMAT(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 형식입니다. (jpeg/png/webp만 허용)"),
+	PROJECT_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "이미지 용량이 5MB를 초과했습니다."),
+
+	// 자연어 향 요청(Request)
+	REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "향 요청을 찾을 수 없습니다."),
+	REQUEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 향 요청에 접근할 권한이 없습니다."),
+	REQUEST_EDIT_NOT_ALLOWED(HttpStatus.CONFLICT, "이미 확정된 요청은 수정할 수 없습니다."),
+	REQUEST_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "핵심 정보가 누락되거나 확정할 수 없는 상태입니다."),
+	REQUEST_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 요청으로는 후보를 생성할 수 없습니다."),
+	WORK_CHECKLIST_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "체크리스트 항목을 찾을 수 없습니다."),
+	WORK_CHECKLIST_ITEM_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 이 항목을 변경했습니다. 최신 상태를 다시 확인한 뒤 시도하세요."),
+
+	// 후보 조향식(Formula)
+	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "후보를 찾을 수 없습니다."),
+	CANDIDATE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 후보에 접근할 권한이 없습니다."),
+	CANDIDATE_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "후보 버전을 찾을 수 없습니다."),
+	GENERATION_REJECTED(HttpStatus.CONFLICT, "안전 제약을 만족하는 조향식을 생성하지 못했습니다."),
+	CANDIDATE_STATUS_TRANSITION_INVALID(HttpStatus.CONFLICT, "허용되지 않는 실험 상태 전이입니다."),
+	SAFETY_GATE_NOT_APPROVED(HttpStatus.CONFLICT, "안전 게이트가 승인되지 않아 실험 후보로 확정할 수 없습니다."),
+	SAFETY_EVALUATION_MISSING(HttpStatus.CONFLICT, "안전 평가 결과가 없어 승인할 수 없습니다."),
+	SAFETY_EVALUATION_NOT_PASSED(HttpStatus.CONFLICT, "안전 평가를 통과하지 못한 버전은 승인할 수 없습니다."),
+	CANDIDATE_MEMO_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 이 메모를 저장했습니다. 최신 내용을 다시 불러온 뒤 다시 시도하세요."),
+	CANDIDATE_REVISE_PREPARE_NOT_READY(HttpStatus.CONFLICT, "자연어 수정에 필요한 정보가 부족해 후보 요청을 먼저 보완해야 합니다."),
+	CANDIDATE_REVISE_NO_DIAGNOSTIC_RESULT(HttpStatus.CONFLICT, "진단 재평가 결과가 없어 자연어 수정을 진행할 수 없습니다."),
+
+	// 증거·관능검증(Evidence)
+	SENSORY_TEST_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 계획을 찾을 수 없습니다."),
+	SENSORY_TEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "공개되지 않은 관능 결과에 접근할 권한이 없습니다."),
+	SENSORY_TEST_NOT_COMPLETED(HttpStatus.CONFLICT, "결과가 등록되지 않은 계획은 공개할 수 없습니다."),
+	SENSORY_TEST_CANDIDATE_NOT_CONFIRMED(HttpStatus.CONFLICT, "실험 후보로 확정되지 않은 후보는 관능 계획을 등록할 수 없습니다."),
+	EVIDENCE_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "증거 보고서를 찾을 수 없습니다."),
+	SENSORY_TEST_RESULT_NOT_FOUND(HttpStatus.NOT_FOUND, "관능 검증 결과를 찾을 수 없습니다."),
+	SENSORY_RESULT_DATA_OR_MISSING_REASON_REQUIRED(HttpStatus.BAD_REQUEST,
+			"측정 결과가 없으면 결측 사유(missingReason)를 입력해야 합니다."),
+	SENSORY_RESULT_SCALE_RANGE_INVALID(HttpStatus.BAD_REQUEST, "척도 최솟값은 최댓값보다 작아야 합니다."),
+	SENSORY_RESULT_SUPERSEDES_MISMATCH(HttpStatus.BAD_REQUEST, "다른 관능 검증에 속한 결과는 수정 대상으로 지정할 수 없습니다."),
+
+	// 원료 카탈로그(Ingredient)
+	CATALOG_SYNC_NOT_FOUND(HttpStatus.NOT_FOUND, "카탈로그 동기화 실행 기록을 찾을 수 없습니다."),
+	INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "생성된 조향식에서 확인된 적 없는 원료입니다."),
+	INGREDIENT_MASTER_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 원료 마스터를 찾을 수 없습니다."),
+	INGREDIENT_MASTER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 외부 원료 ID입니다."),
+	INGREDIENT_IMPORT_FAILURE_NOT_FOUND(HttpStatus.NOT_FOUND, "대량 등록 실패 기록을 찾을 수 없습니다."),
+	INGREDIENT_IMPORT_FAILURE_ALREADY_RESOLVED(HttpStatus.CONFLICT, "이미 해결된 실패 기록입니다."),
+
+	// 공급 변경 영향(Supply)
+	SUPPLY_CHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "공급 변경 이벤트를 찾을 수 없습니다."),
+	SUPPLY_CHANGE_PRICE_FIELDS_INCONSISTENT(HttpStatus.BAD_REQUEST,
+			"가격 변동 유형에는 이전/변경 가격이 모두 필요하며, 가격 변화 방향이 유형과 일치해야 합니다."),
+	SUPPLY_CHANGE_FIELD_DIFF_REQUIRED(HttpStatus.BAD_REQUEST,
+			"이 변경 유형은 changedField/previousValue/newValue를 모두 입력해야 합니다."),
+
+	// 비동기 작업(Job)
+	JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "작업을 찾을 수 없습니다."),
+	JOB_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 작업에 접근할 권한이 없습니다."),
+	JOB_NOT_RETRYABLE(HttpStatus.CONFLICT, "재시도할 수 없는 작업입니다."),
+	JOB_NOT_CANCELLABLE(HttpStatus.CONFLICT, "이미 종료되어 취소할 수 없는 작업입니다."),
+	JOB_RETRY_NOT_SUPPORTED(HttpStatus.NOT_IMPLEMENTED, "이 작업 종류는 아직 재시도를 지원하지 않습니다."),
+	JOB_ILLEGAL_STATE(HttpStatus.CONFLICT, "작업 상태 전이가 올바르지 않습니다."),
+	JOB_CANCELLED(HttpStatus.CONFLICT, "작업이 취소되어 결과를 저장하지 않았습니다."),
+	JOB_QUEUE_SATURATED(HttpStatus.SERVICE_UNAVAILABLE, "작업 큐가 가득 차 있습니다. 잠시 후 다시 시도해 주세요."),
+	JOB_IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "이미 사용된 Idempotency-Key로 다른 요청을 보냈습니다."),
+
+	// 조향 AI(Modal) 연동
+	AI_AUTH_MISCONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "조향 AI 인증 설정 오류로 서비스에 연결할 수 없습니다."),
+	AI_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "조향 AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."),
+	AI_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "조향 AI 호출이 일시적으로 많습니다. 잠시 후 다시 시도해 주세요."),
+	AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "조향 AI 처리 중 오류가 발생했습니다."),
+	AI_SCHEMA_VERSION_MISMATCH(HttpStatus.BAD_GATEWAY, "조향 AI 응답 형식이 예상과 달라 결과를 저장하지 않았습니다."),
+	CHANGE_IMPACT_EVIDENCE_MISSING(HttpStatus.CONFLICT, "비교할 근거 자료가 전혀 없어 변경 영향 재평가를 실행할 수 없습니다. 먼저 근거를 등록하세요.");
+
+	private final HttpStatus status;
+	private final String message;
+}
