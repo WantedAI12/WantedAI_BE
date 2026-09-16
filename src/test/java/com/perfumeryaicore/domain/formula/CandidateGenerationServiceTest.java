@@ -150,7 +150,7 @@ class CandidateGenerationServiceTest {
 		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
-				"prototype_ready", "안전 조건 충족", "f-1", 0.9, null, 42.0,
+				"prototype_ready", "안전 조건 충족", "f-1", null, null, 42.0,
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
@@ -235,7 +235,7 @@ class CandidateGenerationServiceTest {
 		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
-				"prototype_ready", "안전 조건 충족", "f-1", 0.9, null, 42.0,
+				"prototype_ready", "안전 조건 충족", "f-1", null, null, 42.0,
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,

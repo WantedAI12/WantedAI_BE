@@ -26,13 +26,16 @@ public record FormulaGenerationResponse(
 		String formulaId,
 
 		/**
-		 * V89-backend-contract-rc01부터 nullable 숫자 계약으로 바뀌었다(AI팀 확인) - 계산된 수치
-		 * 신뢰도가 없으면 {@code null}이고, {@code "heuristic_only"} 같은 설명은 {@link #confidenceKind}로
-		 * 분리됐다. 이전엔 문자열 상태값이 섞여 와서 {@code String}으로 받았었다(이 필드는 어디서도
-		 * 읽지 않아 타입 변경이 안전함).
+		 * AI팀이 V89-backend-contract-rc01(로컬 검증, 아직 미배포) 기준으로 nullable 숫자
+		 * 계약이라고 확인해 줬지만, 지금 실제 운영 Modal 엔드포인트가 이미 그 계약으로 바뀌었는지는
+		 * 아직 확인 못 했다 - 이전엔 {@code "heuristic_only"} 같은 문자열 상태값이 실서버 응답에서
+		 * 확인된 적이 있다. 배포 시점이 어긋나면 숫자 전용 타입은 그 문자열을 역직렬화하다
+		 * 예외를 던져 후보 생성 전체가 깨질 위험이 있어, 확정될 때까지 원문 노드로 방어적으로
+		 * 받는다 - 이 필드는 어디서도 읽지 않아 그래도 안전하다. AI팀에 배포 시점 확인 후
+		 * {@code Double}로 좁힐 것.
 		 */
 		@JsonProperty("confidence")
-		Double confidence,
+		JsonNode confidence,
 
 		@JsonProperty("confidence_kind")
 		String confidenceKind,
