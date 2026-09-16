@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ExperimentStatusLogRepository extends JpaRepository<ExperimentStatusLog, Long> {
 
 	List<ExperimentStatusLog> findByCandidateIdOrderByCreatedAtDesc(Long candidateId);
+
+	List<ExperimentStatusLog> findByCandidateIdIn(List<Long> candidateIds);
 }
