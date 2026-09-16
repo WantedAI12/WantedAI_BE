@@ -133,6 +133,27 @@ class PerfumeryAiClientTest {
 		assertThat(calls.get()).isEqualTo(2);
 	}
 
+	/**
+	 * BE-108(AI/프론트 개발팀 확인, 2026-09-17): 422 같은 4xx 입력 검증 실패는 같은 요청을
+	 * 다시 보내도 똑같이 실패한다 - 5xx 일시 오류와 같은 AI_SERVICE_ERROR 코드를 쓰더라도
+	 * 재시도하면 안 된다는 신호(retryable=false)를 예외가 직접 실어 날라야 한다. 이게 없으면
+	 * JobExecutor가 오류 코드만 보고 재시도 가능으로 오판해 영원히 실패할 작업을 계속
+	 * 재시도한다.
+	 */
+	@Test
+	void a_4xx_validation_rejection_is_not_retried_and_carries_a_non_retryable_signal() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.UNPROCESSABLE_ENTITY, "{\"detail\":\"missing required field\"}", calls));
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t"))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode", "retryable")
+				.containsExactly(ErrorCode.AI_SERVICE_ERROR, false);
+		assertThat(calls.get()).isEqualTo(1);
+	}
+
 	@Test
 	void local_rate_limit_blocks_call_beyond_cap() {
 		AtomicInteger calls = new AtomicInteger();

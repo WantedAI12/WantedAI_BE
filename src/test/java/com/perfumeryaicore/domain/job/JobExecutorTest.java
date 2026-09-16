@@ -66,6 +66,39 @@ class JobExecutorTest {
 		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SCHEMA_VERSION_MISMATCH"), eq(false));
 	}
 
+	/**
+	 * BE-108: AI_SERVICE_ERROR 하나가 재시도 가능한 5xx 일시 오류에도, 재시도해도 똑같이
+	 * 실패할 4xx 입력 검증 실패에도 쓰인다 - 오류 코드만 보고 항상 재시도 가능으로 판단하면
+	 * (기존 버그) 같은 입력값으로 영원히 실패할 요청을 계속 재시도하게 된다.
+	 */
+	@Test
+	void an_ai_service_error_explicitly_marked_non_retryable_is_not_retried() {
+		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
+			throw new BusinessException(ErrorCode.AI_SERVICE_ERROR, false);
+		});
+
+		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SERVICE_ERROR"), eq(false));
+	}
+
+	@Test
+	void an_ai_service_error_explicitly_marked_retryable_is_retried() {
+		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
+			throw new BusinessException(ErrorCode.AI_SERVICE_ERROR, true);
+		});
+
+		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SERVICE_ERROR"), eq(true));
+	}
+
+	/** 명시적 재시도 신호가 없으면(다른 예외들처럼) 기존과 같이 오류 코드 기준 기본값을 쓴다. */
+	@Test
+	void an_ai_service_error_without_an_explicit_retryable_signal_falls_back_to_the_error_code_default() {
+		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
+			throw new BusinessException(ErrorCode.AI_SERVICE_ERROR);
+		});
+
+		verify(jobService).markFailed(eq(1L), eq(1), contains("AI_SERVICE_ERROR"), eq(true));
+	}
+
 	@Test
 	void unexpected_exception_marks_job_failed_not_retryable() {
 		jobExecutor.execute(1L, JobType.CANDIDATE_GENERATION, ctx -> {
