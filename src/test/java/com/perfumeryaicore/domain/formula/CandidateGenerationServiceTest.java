@@ -282,7 +282,7 @@ class CandidateGenerationServiceTest {
 		verify(candidatePersistenceService, never()).persist(anyLong(), anyLong(), anyLong(), anyLong(), any());
 	}
 
-	/** 팀 확인: recipe/closest_candidate가 있어도 profile_target_met이 거짓이면 후보로 저장하면 안 된다. */
+	/** recipe가 비어있고 closest_candidate만 있으면(기권·탐색 미완료) 후보로 저장하면 안 된다. */
 	@Test
 	void a_lotion_response_that_is_not_a_usable_candidate_is_rejected_without_creating_a_candidate() {
 		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(lotionRequest());
@@ -308,5 +308,37 @@ class CandidateGenerationServiceTest {
 		verify(candidatePersistenceService).persistRejection(5L, 10L, 77L, 1L,
 				"insufficient_observed_target_coverage", "insufficient_observed_target_coverage",
 				"{\"status\":\"insufficient_observed_target_coverage\"}");
+	}
+
+	/**
+	 * AI팀 확인(2026-09-17): 목표 유사도 미달(profile_target_met=false)도 유효한 계산 결과다 -
+	 * 실제 배합이 있으면 후보로 저장하고, 목표 달성 여부는 별도로 보관한다(통과·승인으로 바뀌는 게
+	 * 아님).
+	 */
+	@Test
+	void a_lotion_response_below_the_similarity_target_is_still_saved_as_a_candidate() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(lotionRequest());
+		Job job = jobWithId(77L);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
+		when(jobService.get(77L, 1L)).thenReturn(
+				new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		LotionDesignResponse parsed = new LotionDesignResponse("ready", false, false, null,
+				List.of(tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode()
+						.put("ingredient_id", "citral").put("name", "Citral")),
+				List.of());
+		PerfumeryAiResult<LotionDesignResponse> aiResult = new PerfumeryAiResult<>("{\"status\":\"ready\"}", parsed, 500L);
+		when(perfumeryAiClient.designLotion(any(LotionEstimateRequest.class), eq("job-77"), any())).thenReturn(aiResult);
+		when(candidatePersistenceService.persistLotion(5L, 10L, 1L, 77L, aiResult)).thenReturn(900L);
+
+		service.enqueue(5L, 1L);
+
+		ArgumentCaptor<JobWork> captor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), captor.capture());
+
+		Long candidateId = captor.getValue().run(context(false, () -> { }));
+
+		assertThat(candidateId).isEqualTo(900L);
+		verify(candidatePersistenceService, never()).persistRejection(anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), any());
 	}
 }

@@ -57,6 +57,7 @@ public record PredictionResponse(
 	public record Simulation(
 			String status,
 			Double confidence,
+			String confidenceKind,
 			Double p05,
 			Double p95,
 			Integer draws

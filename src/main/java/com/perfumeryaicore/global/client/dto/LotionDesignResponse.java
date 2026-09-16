@@ -39,12 +39,13 @@ public record LotionDesignResponse(
 ) {
 
 	/**
-	 * 정상 추천 후보로 저장해도 되는지. {@code profile_target_met}이 참이고 실제 배합이
-	 * 있어야 한다 - 팀 확인: recipe가 비어있거나 closest_candidate만 있는 경우(기권·탐색
-	 * 미완료)를 정상 후보로 저장·노출하면 안 된다.
+	 * 후보로 저장해도 되는지. AI팀 확인(2026-09-17): 목표 유사도 미달({@code profile_target_met}
+	 * false)도 유효한 계산 결과이지 기권이 아니다 - 실제 배합(recipe)이 있는지만으로 판단하고,
+	 * 목표 달성 여부는 별도로 보관해 화면에서 구분해 보여준다(통과·승인으로 바뀌는 게 아님).
+	 * recipe가 비어있고 closest_candidate만 있는 경우(기권·탐색 미완료)만 저장하지 않는다.
 	 */
 	public boolean isUsableCandidate() {
-		return Boolean.TRUE.equals(profileTargetMet) && recipe != null && !recipe.isEmpty();
+		return recipe != null && !recipe.isEmpty();
 	}
 
 	public int recipeSize() {
