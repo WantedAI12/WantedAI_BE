@@ -3,10 +3,13 @@ package com.perfumeryaicore.domain.safety.service;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
+import com.perfumeryaicore.domain.safety.dto.request.ChangeImpactApiRequest;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.ChangeImpactRequest;
+import com.perfumeryaicore.global.client.dto.ChangeImpactResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceLine;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
@@ -80,16 +83,50 @@ public class RegulatoryEvidenceService {
 		return result.parsed();
 	}
 
+	/**
+	 * 근거 버전이 바뀐 뒤 후보의 현재 배합이 여전히 유효한지 재평가한다. {@code assess}와 달리
+	 * 진단 모드 우회가 없어 등록된 근거가 없으면 항상 422로 거부된다(AI팀 확인).
+	 */
+	public ChangeImpactResponse changeImpact(Long candidateId, Long memberId, ChangeImpactApiRequest dto) {
+		CandidateResponse candidate = candidateService.get(candidateId, memberId);
+		if (candidate.currentVersion() == null || candidate.currentVersion().ingredients().isEmpty()) {
+			throw new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
+		}
+		var lines = candidate.currentVersion().ingredients().stream()
+				.map(i -> new EvidenceLine(i.ingredientId(), i.concentratePercent()))
+				.toList();
+
+		ChangeImpactRequest request = new ChangeImpactRequest(
+				lines,
+				dto.targetRegion().modalValue(),
+				dto.productCategory().getModalValue(),
+				dto.productConcentrationPercent(),
+				dto.maxFormulaCostPerKg(),
+				dto.maxIngredientPricePerKg(),
+				buildPolicy(dto.finishedBatchMassG(), dto.maximumLeadTimeDays(), dto.maximumPurchaseCostUsd()),
+				dto.previousEvidenceVersion());
+
+		var result = perfumeryAiClient.changeImpact(request, "candidate-" + candidateId, null);
+		log.info("[EVIDENCE] candidate={} change-impact previousVersion={} status={} by={}",
+				candidateId, dto.previousEvidenceVersion(), result.parsed().status(), memberId);
+		return result.parsed();
+	}
+
 	private JsonNode buildPolicy(AssessEvidenceApiRequest dto) {
+		return buildPolicy(dto.finishedBatchMassG(), dto.maximumLeadTimeDays(), dto.maximumPurchaseCostUsd());
+	}
+
+	private JsonNode buildPolicy(Double finishedBatchMassG, Integer maximumLeadTimeDays,
+			Double maximumPurchaseCostUsd) {
 		ObjectNode policy = jsonMapper.createObjectNode();
-		if (dto.finishedBatchMassG() != null) {
-			policy.put("finished_batch_mass_g", dto.finishedBatchMassG());
+		if (finishedBatchMassG != null) {
+			policy.put("finished_batch_mass_g", finishedBatchMassG);
 		}
-		if (dto.maximumLeadTimeDays() != null) {
-			policy.put("maximum_lead_time_days", dto.maximumLeadTimeDays());
+		if (maximumLeadTimeDays != null) {
+			policy.put("maximum_lead_time_days", maximumLeadTimeDays);
 		}
-		if (dto.maximumPurchaseCostUsd() != null) {
-			policy.put("maximum_purchase_cost_usd", dto.maximumPurchaseCostUsd());
+		if (maximumPurchaseCostUsd != null) {
+			policy.put("maximum_purchase_cost_usd", maximumPurchaseCostUsd);
 		}
 		return policy;
 	}

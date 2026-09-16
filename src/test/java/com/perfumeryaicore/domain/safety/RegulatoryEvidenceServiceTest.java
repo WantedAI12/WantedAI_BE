@@ -12,12 +12,15 @@ import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse.IngredientLine;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
+import com.perfumeryaicore.domain.safety.dto.request.ChangeImpactApiRequest;
 import com.perfumeryaicore.domain.safety.service.RegulatoryEvidenceService;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.ChangeImpactRequest;
+import com.perfumeryaicore.global.client.dto.ChangeImpactResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.common.CandidateStatus;
@@ -135,6 +138,39 @@ class RegulatoryEvidenceServiceTest {
 				TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, null, null, null);
 
 		assertThatThrownBy(() -> service.assess(CANDIDATE_ID, MEMBER_ID, dto))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
+	}
+
+	@Test
+	void changeImpact_builds_lines_from_the_candidate_current_version_and_forwards_the_previous_version() {
+		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidateWithIngredients());
+		ArgumentCaptor<ChangeImpactRequest> captor = ArgumentCaptor.forClass(ChangeImpactRequest.class);
+		ChangeImpactResponse response = new ChangeImpactResponse("rd-change-impact-1", "blocked", "scope", List.of(), "result-1");
+		when(perfumeryAiClient.changeImpact(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", response, 0L));
+
+		ChangeImpactApiRequest dto = new ChangeImpactApiRequest(
+				"evidence-v3", TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, 1000.0, 10, 100.0);
+		ChangeImpactResponse result = service.changeImpact(CANDIDATE_ID, MEMBER_ID, dto);
+
+		assertThat(result.status()).isEqualTo("blocked");
+		assertThat(captor.getValue().previousEvidenceVersion()).isEqualTo("evidence-v3");
+		assertThat(captor.getValue().lines()).hasSize(1);
+		assertThat(captor.getValue().lines().get(0).ingredientId()).isEqualTo("linalyl_acetate");
+		assertThat(captor.getValue().targetRegion()).isEqualTo("EU");
+		assertThat(captor.getValue().policy().get("finished_batch_mass_g").asDouble()).isEqualTo(1000.0);
+	}
+
+	@Test
+	void changeImpact_rejects_a_candidate_without_a_current_version() {
+		CandidateResponse candidate = new CandidateResponse(
+				CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidate);
+		ChangeImpactApiRequest dto = new ChangeImpactApiRequest(
+				"evidence-v3", TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, null, null, null);
+
+		assertThatThrownBy(() -> service.changeImpact(CANDIDATE_ID, MEMBER_ID, dto))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
 	}
