@@ -68,4 +68,35 @@ class ProjectAccessGuardTest {
 
 		assertThat(guard.hasRole(10L, 99L, ProjectRole.SENSORY_SCIENTIST)).isFalse();
 	}
+
+	@Test
+	void require_write_role_allows_a_solo_org_admin_with_no_teammates_yet() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.ORG_ADMIN)));
+		when(repository.countByProjectId(10L)).thenReturn(1L);
+
+		assertThat(guard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND))
+				.isEqualTo(ProjectRole.ORG_ADMIN);
+	}
+
+	/** 팀원이 초대돼 둘 이상이 되면 ORG_ADMIN도 실제 쓰기 역할이 있는 사람에게 맡겨야 한다. */
+	@Test
+	void require_write_role_denies_an_org_admin_once_other_members_exist() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.ORG_ADMIN)));
+		when(repository.countByProjectId(10L)).thenReturn(2L);
+
+		assertThatThrownBy(() -> guard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	@Test
+	void require_write_role_passes_through_for_an_actual_write_role_regardless_of_team_size() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.PERFUMER)));
+
+		assertThat(guard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND))
+				.isEqualTo(ProjectRole.PERFUMER);
+	}
 }

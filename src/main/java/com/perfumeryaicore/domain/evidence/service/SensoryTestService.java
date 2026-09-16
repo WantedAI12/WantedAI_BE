@@ -60,7 +60,7 @@ public class SensoryTestService {
 	@Transactional
 	public SensoryTestResponse plan(Long candidateId, Long memberId, SensoryTestPlanRequest dto) {
 		Long projectId = candidateService.getProjectId(candidateId, memberId);
-		accessGuard.requireRole(projectId, memberId, WRITE_ROLE);
+		accessGuard.requireWriteRole(projectId, memberId, WRITE_ROLE);
 
 		CandidateResponse candidate = candidateService.get(candidateId, memberId);
 		if (candidate.status() == CandidateStatus.UNDER_REVIEW) {
@@ -98,7 +98,7 @@ public class SensoryTestService {
 	public SensoryTestResultResponse recordResult(Long testId, Long memberId, SensoryTestResultCreateRequest dto) {
 		SensoryTest test = getAccessibleTest(testId, memberId);
 		Long projectId = candidateService.getProjectId(test.getCandidateId(), memberId);
-		accessGuard.requireRole(projectId, memberId, WRITE_ROLE);
+		accessGuard.requireWriteRole(projectId, memberId, WRITE_ROLE);
 
 		if (dto.resultData() == null && (dto.missingReason() == null || dto.missingReason().isBlank())) {
 			throw new BusinessException(ErrorCode.SENSORY_RESULT_DATA_OR_MISSING_REASON_REQUIRED);
@@ -129,7 +129,7 @@ public class SensoryTestService {
 	public SensoryTestResponse publish(Long testId, Long memberId) {
 		SensoryTest test = getAccessibleTest(testId, memberId);
 		Long projectId = candidateService.getProjectId(test.getCandidateId(), memberId);
-		accessGuard.requireRole(projectId, memberId, PUBLISH_ROLES);
+		accessGuard.requireWriteRole(projectId, memberId, PUBLISH_ROLES);
 		test.publish(memberId);
 		log.info("[EVIDENCE] sensory-test id={} published by={}", testId, memberId);
 		return toResponse(test, resultsOf(testId));

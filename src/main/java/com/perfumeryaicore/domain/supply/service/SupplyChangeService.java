@@ -55,7 +55,7 @@ public class SupplyChangeService {
 
 	@Transactional
 	public SupplyChangeResponse register(String ingredientId, Long memberId, RegisterSupplyChangeRequest dto) {
-		accessGuard.requireRole(dto.projectId(), memberId, ProjectRole.SUPPLIER, ProjectRole.FRAGRANCE_RND);
+		accessGuard.requireWriteRole(dto.projectId(), memberId, ProjectRole.SUPPLIER, ProjectRole.FRAGRANCE_RND);
 
 		// BE-070: 동일 변경원천 ID 중복 수신은 새 이벤트를 만들지 않고 기존 이벤트를 그대로 반환한다.
 		if (dto.changeSourceId() != null) {
@@ -98,7 +98,7 @@ public class SupplyChangeService {
 			RecordSupplyReviewDecisionRequest dto) {
 		Candidate candidate = candidateRepository.findById(candidateId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_NOT_FOUND));
-		accessGuard.requireRole(candidate.getProjectId(), memberId,
+		accessGuard.requireWriteRole(candidate.getProjectId(), memberId,
 				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER);
 
 		SupplyReviewDecision decision = reviewDecisionRepository.save(SupplyReviewDecision.record(
