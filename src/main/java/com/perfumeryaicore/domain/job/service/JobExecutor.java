@@ -91,7 +91,11 @@ public class JobExecutor {
 			jobService.markSucceeded(jobId, attempt, resultRefId);
 			log.info("[JOB] id={} type={} attempt={} SUCCEEDED resultRefId={}", jobId, jobType, attempt, resultRefId);
 		} catch (BusinessException e) {
-			boolean retryable = RETRYABLE_ERRORS.contains(e.getErrorCode());
+			// BE-108: 예외가 실제 HTTP 상태로 판단한 재시도 여부를 직접 실어 오면 그걸 그대로
+			// 따른다 - 오류 코드 하나(예: AI_SERVICE_ERROR)가 재시도 가능한 5xx 일시 오류와
+			// 재시도 불가능한 4xx 입력 검증 실패를 모두 포함할 수 있어, 코드만으로는 구분되지
+			// 않는다. 그런 신호가 없는 예외만 기존처럼 오류 코드 기준으로 판단한다.
+			boolean retryable = e.getRetryable() != null ? e.getRetryable() : RETRYABLE_ERRORS.contains(e.getErrorCode());
 			jobService.markFailed(jobId, attempt, e.getErrorCode().name() + ": " + e.getMessage(), retryable);
 			log.warn("[JOB] id={} type={} attempt={} FAILED code={} retryable={}",
 					jobId, jobType, attempt, e.getErrorCode().name(), retryable);

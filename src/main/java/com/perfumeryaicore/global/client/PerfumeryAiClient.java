@@ -428,7 +428,7 @@ public class PerfumeryAiClient {
 			attempt++;
 			long start = System.currentTimeMillis();
 			try {
-				String result = execute(call);
+				String result = execute(op, traceId, call);
 				log.info("[AI] op={} trace={} attempt={} result=OK durationMs={}",
 						op, traceId, attempt, System.currentTimeMillis() - start);
 				return result;
@@ -442,26 +442,38 @@ public class PerfumeryAiClient {
 				}
 				log.error("[AI] op={} trace={} attempt={} error={} durationMs={} retryable={}",
 						op, traceId, attempt, e.errorCode.name(), durationMs, e.retryable);
-				throw new BusinessException(e.errorCode);
+				// BE-108: 재시도 여부는 실제 HTTP 상태로 판단한 e.retryable을 그대로 물려준다 -
+				// JobExecutor가 오류 코드만 보고 다시 재시도 가능으로 되돌리면(예: 항상 재시도
+				// 가능하다고 오해하기 쉬운 AI_SERVICE_ERROR), 같은 입력값으로 영원히 실패할
+				// 요청을 계속 재시도하게 된다(AI/프론트 개발팀 확인, 2026-09-17).
+				throw new BusinessException(e.errorCode, e.retryable);
 			}
 		}
 	}
 
-	/** WebClient 호출을 실행하고 발생 예외를 {@link AiCallException}(재시도 여부 포함)으로 변환한다. */
-	private String execute(Supplier<String> call) {
+	/**
+	 * WebClient 호출을 실행하고 발생 예외를 {@link AiCallException}(재시도 여부 포함)으로 변환한다.
+	 * 4xx(재시도 불가로 분류되는 경우 포함)는 원문 응답 본문까지 로그에 남긴다 - 이전에는 오류
+	 * 코드만 남아 조향 AI가 무엇을 거절했는지(예: 입력 검증 실패) 알 수 없었다(AI 개발팀 확인).
+	 */
+	private String execute(String op, String traceId, Supplier<String> call) {
 		try {
 			return call.get();
 		} catch (WebClientResponseException e) {
 			int status = e.getStatusCode().value();
 			if (status == 401 || status == 403) {
+				log.error("[AI] op={} trace={} status={} body={}", op, traceId, status, e.getResponseBodyAsString());
 				throw new AiCallException(ErrorCode.AI_AUTH_MISCONFIGURED, false);
 			}
 			if (status == 429) {
 				throw new AiCallException(ErrorCode.AI_RATE_LIMIT_EXCEEDED, true);
 			}
 			if (e.getStatusCode().is5xxServerError()) {
+				log.error("[AI] op={} trace={} status={} body={}", op, traceId, status, e.getResponseBodyAsString());
 				throw new AiCallException(ErrorCode.AI_SERVICE_ERROR, true);
 			}
+			log.error("[AI] op={} trace={} status={} body={} (non-5xx, non-retryable)",
+					op, traceId, status, e.getResponseBodyAsString());
 			throw new AiCallException(ErrorCode.AI_SERVICE_ERROR, false);
 		} catch (WebClientRequestException e) {
 			// 연결 실패·네트워크 오류·응답 타임아웃
