@@ -1,8 +1,4 @@
--- 게스트 모드(로그인 없이 체험): 임시 계정 표시와 만료 시각.
+-- 게스트 모드(로그인 없이 체험) 계정 표시. 만료·삭제 없이 일반 회원과 동일하게 무기한
+-- 유지된다 - 게스트 출처 데이터를 구분하기 위한 플래그일 뿐이다.
 alter table members
-    add column is_guest bit not null default 0,
-    add column guest_expires_at datetime(6);
-
--- 만료 정리 배치(findByGuestTrueAndGuestExpiresAtBefore)용 조회 인덱스.
-create index idx_members_guest_expires_at
-    on members (is_guest, guest_expires_at);
+    add column is_guest bit not null default 0;

@@ -10,7 +10,6 @@ import com.perfumeryaicore.domain.member.repository.MemberRepository;
 import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
-import com.perfumeryaicore.global.security.GuestAuthProperties;
 import com.perfumeryaicore.global.security.JwtProperties;
 import com.perfumeryaicore.global.security.JwtTokenProvider;
 import com.perfumeryaicore.global.security.LoginLockoutProperties;
@@ -45,7 +44,6 @@ public class AuthService {
 	private final TokenHasher tokenHasher;
 	private final JwtProperties jwtProperties;
 	private final LoginLockoutProperties loginLockoutProperties;
-	private final GuestAuthProperties guestAuthProperties;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	@Transactional
@@ -100,14 +98,9 @@ public class AuthService {
 
 		Member member = memberRepository.findById(stored.getMemberId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-		if (member.isGuestExpired(now)) {
-			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
-		}
 
 		stored.revoke(now);
-		// 게스트는 회전해도 원래 만료 시각을 넘길 수 없다 - 캡을 매번 다시 걸지 않으면
-		// refresh를 반복 호출해 세션을 무기한 연장할 수 있다.
-		return issueTokens(member.getId(), member.getEmail(), member.isGuest() ? member.getGuestExpiresAt() : null);
+		return issueTokens(member.getId(), member.getEmail());
 	}
 
 	@Transactional
@@ -119,40 +112,27 @@ public class AuthService {
 
 	/**
 	 * 게스트 모드(BE, 2026-09-16): 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만들고 바로
-	 * 로그인 상태로 토큰을 발급한다. 이후로는 이 계정이 만드는 프로젝트에 자동으로 ORG_ADMIN이 될
-	 * 뿐, 다른 도메인 코드는 전혀 게스트 여부를 구분하지 않는다 - 권한 체계가 프로젝트 단위라서
-	 * 그대로 작동한다. Refresh Token 만료 시각을 게스트 만료 시각으로 캡핑해, 그 시각이 지나면
-	 * 재발급이 자연히 막힌다(별도의 매 요청 검증 불필요). 만료된 게스트의 데이터 정리는
-	 * 별도 배치가 담당한다.
+	 * 로그인 상태로 토큰을 발급한다. 일반 회원과 동일하게 무기한 유지되며(로그아웃·만료·데이터
+	 * 삭제 없음 - 게스트 사용 데이터도 계속 수집하기로 결정함), 이 계정이 만드는 프로젝트에
+	 * 자동으로 PERFUMER가 되는 것 외에는 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다
+	 * (권한 체계가 프로젝트 단위라서 그대로 작동한다, {@code ProjectService.initialRoleFor} 참고).
 	 */
 	@Transactional
 	public TokenResponse guestLogin() {
-		LocalDateTime now = LocalDateTime.now();
-		LocalDateTime expiresAt = now.plusHours(guestAuthProperties.sessionExpiryHours());
 		Member guest = memberRepository.save(Member.createGuest(
 				"guest+" + UUID.randomUUID() + "@guest.perfumery.local",
-				passwordEncoder.encode(generateRawToken()),
-				expiresAt));
-		return issueTokens(guest.getId(), guest.getEmail(), expiresAt);
+				passwordEncoder.encode(generateRawToken())));
+		return issueTokens(guest.getId(), guest.getEmail());
 	}
 
 	private TokenResponse issueTokens(Long memberId, String email) {
-		return issueTokens(memberId, email, null);
-	}
-
-	private TokenResponse issueTokens(Long memberId, String email, LocalDateTime maxRefreshExpiry) {
 		String accessToken = jwtTokenProvider.createAccessToken(memberId, email);
 		String rawRefreshToken = generateRawToken();
-
-		LocalDateTime refreshExpiry = LocalDateTime.now().plusSeconds(jwtProperties.refreshTokenValiditySeconds());
-		if (maxRefreshExpiry != null && maxRefreshExpiry.isBefore(refreshExpiry)) {
-			refreshExpiry = maxRefreshExpiry;
-		}
 
 		refreshTokenRepository.save(RefreshToken.builder()
 				.memberId(memberId)
 				.tokenHash(tokenHasher.hash(rawRefreshToken))
-				.expiresAt(refreshExpiry)
+				.expiresAt(LocalDateTime.now().plusSeconds(jwtProperties.refreshTokenValiditySeconds()))
 				.build());
 
 		return new TokenResponse(accessToken, rawRefreshToken,
