@@ -13,7 +13,7 @@ public record UpdateIngredientMasterRequest(
 		@Size(max = 200)
 		String name,
 
-		List<@Size(max = 100) String> synonyms,
+		List<@Size(max = 150) String> synonyms,
 
 		@Size(max = 200)
 		String supplierName,
@@ -31,7 +31,7 @@ public record UpdateIngredientMasterRequest(
 
 		Double pricePerKg,
 
-		@Size(max = 20)
+		@Size(max = 50)
 		String priceCurrency,
 
 		Integer riskTier
