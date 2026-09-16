@@ -109,7 +109,8 @@ public enum ErrorCode {
 	AI_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "조향 AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."),
 	AI_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "조향 AI 호출이 일시적으로 많습니다. 잠시 후 다시 시도해 주세요."),
 	AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "조향 AI 처리 중 오류가 발생했습니다."),
-	AI_SCHEMA_VERSION_MISMATCH(HttpStatus.BAD_GATEWAY, "조향 AI 응답 형식이 예상과 달라 결과를 저장하지 않았습니다.");
+	AI_SCHEMA_VERSION_MISMATCH(HttpStatus.BAD_GATEWAY, "조향 AI 응답 형식이 예상과 달라 결과를 저장하지 않았습니다."),
+	CHANGE_IMPACT_EVIDENCE_MISSING(HttpStatus.CONFLICT, "비교할 근거 자료가 전혀 없어 변경 영향 재평가를 실행할 수 없습니다. 먼저 근거를 등록하세요.");
 
 	private final HttpStatus status;
 	private final String message;

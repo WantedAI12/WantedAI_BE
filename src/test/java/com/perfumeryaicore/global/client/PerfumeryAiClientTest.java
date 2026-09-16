@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
+import com.perfumeryaicore.global.client.dto.ChangeImpactRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
@@ -363,6 +364,61 @@ class PerfumeryAiClientTest {
 		assertThat(result.parsed().isBlocked()).isTrue();
 		assertThat(result.parsed().blockers()).hasSize(1);
 		assertThat(result.parsed().blockers().get(0).ingredientId()).isEqualTo("linalyl_acetate");
+	}
+
+	@Test
+	void changeImpact_success_parses_the_real_v89_schema() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"schema_version":"rd-change-impact-1","before":{},"after":{},"changes":{},
+				 "affected_material_count":1,"review_required":true,"state_changed":false,
+				 "manufacturing_approval":false,
+				 "scope":"public_observation_comparison_not_operator_approval_or_inventory_reservation",
+				 "result_id":"result-1","contract":{}}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, response, calls));
+		ChangeImpactRequest request = new ChangeImpactRequest(
+				List.of(new EvidenceLine("linalyl_acetate", 100.0)), "EU", "eau_de_parfum", 15.0, 180.0, null,
+				JSON.createObjectNode(), "public-all-20260914T021125");
+
+		var result = client.changeImpact(request, "trace-1", null);
+
+		assertThat(calls.get()).isEqualTo(1);
+		assertThat(result.parsed().affectedMaterialCount()).isEqualTo(1);
+		assertThat(result.parsed().reviewRequired()).isTrue();
+	}
+
+	/** AI팀 확인(2026-09-16): 비교할 근거 자료가 전혀 없으면 이 구조화된 422로 거부된다. */
+	@Test
+	void changeImpact_rejects_with_a_specific_error_when_evidence_snapshots_are_missing() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"detail":{"status":"abstained","code":"EVIDENCE_SNAPSHOTS_MISSING"}}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.UNPROCESSABLE_ENTITY, response, calls));
+		ChangeImpactRequest request = new ChangeImpactRequest(
+				List.of(new EvidenceLine("linalyl_acetate", 100.0)), "EU", "eau_de_parfum", 15.0, 180.0, null,
+				JSON.createObjectNode(), "public-all-20260914T021125");
+
+		assertThatThrownBy(() -> client.changeImpact(request, "trace-1", null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.CHANGE_IMPACT_EVIDENCE_MISSING);
+	}
+
+	/** 근거 없음 외의 다른 422(예: 잘못된 버전 문자열)는 대부분 null인 "성공"으로 잘못 파싱되면 안 된다. */
+	@Test
+	void changeImpact_rejects_other_422_bodies_as_a_generic_ai_error() {
+		AtomicInteger calls = new AtomicInteger();
+		String response = """
+				{"detail":{"status":"error","code":"UNKNOWN_PUBLIC_OBSERVATION_VERSION"}}""";
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.UNPROCESSABLE_ENTITY, response, calls));
+		ChangeImpactRequest request = new ChangeImpactRequest(
+				List.of(new EvidenceLine("linalyl_acetate", 100.0)), "EU", "eau_de_parfum", 15.0, 180.0, null,
+				JSON.createObjectNode(), "audit-missing");
+
+		assertThatThrownBy(() -> client.changeImpact(request, "trace-1", null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.AI_SERVICE_ERROR);
 	}
 
 	@Test

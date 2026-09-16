@@ -38,7 +38,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -253,7 +255,9 @@ public class PerfumeryAiClient {
 	/**
 	 * 원료·공급 근거 버전이 바뀌었을 때 기존 배합이 여전히 유효한지 재평가한다
 	 * ({@code previous_evidence_version} 대비). {@code assess-evidence}와 달리 진단 모드 우회가
-	 * 없다 - 등록된 근거가 없으면 항상 422로 거부된다(V80/V89 연동자료 확인). 성공(200) 응답
+	 * 없다 - 비교할 근거 자료가 전혀 없으면 항상 422로 거부된다(AI팀 확인, 2026-09-16:
+	 * {@code {"detail":{"status":"abstained","code":"EVIDENCE_SNAPSHOTS_MISSING"}}}) - 이때는
+	 * {@link ErrorCode#CHANGE_IMPACT_EVIDENCE_MISSING}으로 구분해서 던진다. 성공(200) 응답
 	 * 스키마는 V89-backend-contract-rc01 실제 호출로 확인됐다({@link ChangeImpactResponse} 참고).
 	 */
 	public PerfumeryAiResult<ChangeImpactResponse> changeImpact(
@@ -269,9 +273,45 @@ public class PerfumeryAiClient {
 				() -> webClient.post().uri("/v2/formulas/change-impact")
 						.contentType(MediaType.APPLICATION_JSON)
 						.bodyValue(request)
-						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+						.exchangeToMono(response -> response.statusCode().value() == 422
+								? response.bodyToMono(String.class)
+								: response.statusCode().isError()
+										? response.createException().flatMap(Mono::error)
+										: response.bodyToMono(String.class))
+						.block(blockTimeout()));
+		rejectChangeImpactError(traceId, body);
 		long latency = System.currentTimeMillis() - startedAt.get();
 		return new PerfumeryAiResult<>(body, parse(body, ChangeImpactResponse.class), latency);
+	}
+
+	/**
+	 * change-impact의 422 응답은 {@code {"detail": {...}}}로 감싸여 온다 - 성공(200) 스키마에는
+	 * 이 래퍼가 없으므로, {@code detail}이 있으면 무조건 오류로 본다(그대로 {@link #parse}에
+	 * 넘기면 대부분 필드가 null인 "성공"으로 잘못 파싱된다). 비교할 근거 자료가 전혀 없는
+	 * 경우({@code code: EVIDENCE_SNAPSHOTS_MISSING}, AI팀 확인 2026-09-16)만 구분해서 별도
+	 * 오류로 던지고, 그 외(잘못된 버전 문자열 등 입력 오류)는 기존과 같이 일반 오류로 던진다.
+	 */
+	private void rejectChangeImpactError(String traceId, String body) {
+		JsonNode detail;
+		try {
+			detail = jsonMapper.readTree(body).get("detail");
+		} catch (JacksonException e) {
+			return;
+		}
+		if (detail == null) {
+			return;
+		}
+		if ("EVIDENCE_SNAPSHOTS_MISSING".equals(textOrNull(detail, "code"))) {
+			log.info("[AI] op=formulas-change-impact trace={} abstained code=EVIDENCE_SNAPSHOTS_MISSING", traceId);
+			throw new BusinessException(ErrorCode.CHANGE_IMPACT_EVIDENCE_MISSING);
+		}
+		log.error("[AI] op=formulas-change-impact trace={} rejected detail={}", traceId, detail);
+		throw new BusinessException(ErrorCode.AI_SERVICE_ERROR);
+	}
+
+	private static String textOrNull(JsonNode node, String field) {
+		JsonNode value = node.get(field);
+		return value != null && value.isString() ? value.asString() : null;
 	}
 
 	/**
