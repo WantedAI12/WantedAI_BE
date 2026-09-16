@@ -42,11 +42,35 @@ public class Member extends BaseTimeEntity {
 	@Column(name = "locked_until")
 	private LocalDateTime lockedUntil;
 
+	/** 게스트 모드(로그인 없이 체험) 계정. 만료되면 재로그인이 막히고, 소유한 데이터는 정리 배치 대상이다. */
+	@Column(name = "is_guest", nullable = false)
+	private boolean guest;
+
+	@Column(name = "guest_expires_at")
+	private LocalDateTime guestExpiresAt;
+
 	@Builder
 	private Member(String email, String passwordHash, String name) {
 		this.email = email;
 		this.passwordHash = passwordHash;
 		this.name = name;
+	}
+
+	private Member(String email, String passwordHash, String name, LocalDateTime guestExpiresAt) {
+		this.email = email;
+		this.passwordHash = passwordHash;
+		this.name = name;
+		this.guest = true;
+		this.guestExpiresAt = guestExpiresAt;
+	}
+
+	/** 임의의 무작위 비밀번호 해시로 즉시 사용 가능한 게스트 계정을 만든다 - 실제 로그인 수단은 없다. */
+	public static Member createGuest(String email, String passwordHash, LocalDateTime guestExpiresAt) {
+		return new Member(email, passwordHash, "Guest", guestExpiresAt);
+	}
+
+	public boolean isGuestExpired(LocalDateTime now) {
+		return guest && guestExpiresAt != null && now.isAfter(guestExpiresAt);
 	}
 
 	public void updateName(String name) {
