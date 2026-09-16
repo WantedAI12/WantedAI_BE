@@ -44,7 +44,7 @@ public class FragranceRequestService {
 		if (!accessGuard.isMember(projectId, memberId)) {
 			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
 		}
-		accessGuard.requireWriteRole(projectId, memberId, WRITE_ROLES);
+		accessGuard.requireRole(projectId, memberId, WRITE_ROLES);
 		return createInternal(projectId, memberId, dto);
 	}
 
@@ -97,7 +97,7 @@ public class FragranceRequestService {
 	@Transactional
 	public FragranceRequestResponse update(Long requestId, Long memberId, UpdateFragranceRequestRequest dto) {
 		FragranceRequest request = getAccessibleRequest(requestId, memberId);
-		accessGuard.requireWriteRole(request.getProjectId(), memberId, WRITE_ROLES);
+		accessGuard.requireRole(request.getProjectId(), memberId, WRITE_ROLES);
 		request.applyUpdate(
 				dto.rawText(),
 				dto.productCategory(),
@@ -115,7 +115,7 @@ public class FragranceRequestService {
 	@Transactional
 	public FragranceRequestResponse confirm(Long requestId, Long memberId) {
 		FragranceRequest request = getAccessibleRequest(requestId, memberId);
-		accessGuard.requireWriteRole(request.getProjectId(), memberId, WRITE_ROLES);
+		accessGuard.requireRole(request.getProjectId(), memberId, WRITE_ROLES);
 		request.confirm();
 		log.info("[REQUEST] id={} CONFIRMED by={}", requestId, memberId);
 		return FragranceRequestResponse.from(request);

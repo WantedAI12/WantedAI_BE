@@ -43,29 +43,6 @@ public class ProjectAccessGuard {
 		throw new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
 
-	/**
-	 * 요청·후보 작성 같은 실무 쓰기 작업 전용 검사({@code requireRole}과 같지만 한 가지 예외를
-	 * 더 허용한다): 프로젝트에 멤버가 자신 하나뿐이면 {@code ORG_ADMIN}도 통과시킨다.
-	 *
-	 * <p>초대할 팀원이 아직 없는 1인 프로젝트에서는 생성자(자동으로 {@code ORG_ADMIN})가
-	 * {@code PERFUMER} 등 실무 역할이 아니라는 이유만으로 자기 프로젝트에 요청 하나 못 쓰는
-	 * 상태가 된다 - 그렇다고 자신을 다른 역할로 바꿀 수도 없다(마지막 관리자는 강등 불가,
-	 * {@link ProjectService#isLastAdminLocked}). 멤버가 둘 이상이 되면 이 예외는 더 이상
-	 * 적용되지 않는다 - 그때는 실제로 쓰기 역할을 가진 팀원에게 맡기라는 뜻이다.
-	 */
-	public ProjectRole requireWriteRole(Long projectId, Long memberId, ProjectRole... writeRoles) {
-		ProjectRole role = requireMember(projectId, memberId);
-		for (ProjectRole candidate : writeRoles) {
-			if (role == candidate) {
-				return role;
-			}
-		}
-		if (role == ProjectRole.ORG_ADMIN && projectMemberRepository.countByProjectId(projectId) == 1) {
-			return role;
-		}
-		throw new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN);
-	}
-
 	public boolean isMember(Long projectId, Long memberId) {
 		return projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId);
 	}

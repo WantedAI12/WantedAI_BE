@@ -17,7 +17,6 @@ import com.perfumeryaicore.global.security.TokenHasher;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -108,21 +107,6 @@ public class AuthService {
 		String hash = tokenHasher.hash(rawRefreshToken);
 		refreshTokenRepository.findByTokenHash(hash)
 				.ifPresent(token -> token.revoke(LocalDateTime.now()));
-	}
-
-	/**
-	 * 게스트 모드(BE, 2026-09-16): 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만들고 바로
-	 * 로그인 상태로 토큰을 발급한다. 일반 회원과 동일하게 무기한 유지되며(로그아웃·만료·데이터
-	 * 삭제 없음 - 게스트 사용 데이터도 계속 수집하기로 결정함), 이 계정이 만드는 프로젝트에
-	 * 자동으로 PERFUMER가 되는 것 외에는 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다
-	 * (권한 체계가 프로젝트 단위라서 그대로 작동한다, {@code ProjectService.initialRoleFor} 참고).
-	 */
-	@Transactional
-	public TokenResponse guestLogin() {
-		Member guest = memberRepository.save(Member.createGuest(
-				"guest+" + UUID.randomUUID() + "@guest.perfumery.local",
-				passwordEncoder.encode(generateRawToken())));
-		return issueTokens(guest.getId(), guest.getEmail());
 	}
 
 	private TokenResponse issueTokens(Long memberId, String email) {

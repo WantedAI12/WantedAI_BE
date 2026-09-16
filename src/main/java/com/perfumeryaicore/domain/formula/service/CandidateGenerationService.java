@@ -79,7 +79,7 @@ public class CandidateGenerationService {
 	 */
 	public JobResponse enqueue(Long requestId, Long memberId, String idempotencyKey) {
 		FragranceRequest request = fragranceRequestService.getConfirmedRequest(requestId, memberId);
-		accessGuard.requireWriteRole(request.getProjectId(), memberId, TRIGGER_ROLES);
+		accessGuard.requireRole(request.getProjectId(), memberId, TRIGGER_ROLES);
 
 		Job job = jobService.enqueue(request.getProjectId(), JobType.CANDIDATE_GENERATION, memberId,
 				String.valueOf(requestId), idempotencyKey);

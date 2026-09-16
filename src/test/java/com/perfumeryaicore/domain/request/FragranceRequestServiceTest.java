@@ -36,7 +36,7 @@ class FragranceRequestServiceTest {
 	@BeforeEach
 	void memberIsProjectMember() {
 		when(accessGuard.isMember(10L, 1L)).thenReturn(true);
-		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
 				.thenReturn(ProjectRole.PERFUMER);
 	}
 
@@ -180,7 +180,7 @@ class FragranceRequestServiceTest {
 	/** BE-004/BE-002: SUPPLIER/AUDITOR 같은 비쓰기 역할은 요청을 만들거나 바꿀 수 없다. */
 	@Test
 	void create_is_forbidden_for_a_non_write_role() {
-		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.create(10L, 1L, createDto(true)))
@@ -192,7 +192,7 @@ class FragranceRequestServiceTest {
 	void update_is_forbidden_for_a_non_write_role() {
 		FragranceRequest incomplete = FragranceRequest.create(10L, 1L, "raw");
 		when(repository.findById(5L)).thenReturn(Optional.of(incomplete));
-		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.update(5L, 1L, new UpdateFragranceRequestRequest(

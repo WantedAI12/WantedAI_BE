@@ -67,7 +67,7 @@ class SupplyChangeServiceTest {
 
 	@Test
 	void register_is_forbidden_for_a_role_other_than_supplier_or_fragrance_rnd() {
-		when(accessGuard.requireWriteRole(eq(10L), eq(1L), any(ProjectRole.class), any(ProjectRole.class)))
+		when(accessGuard.requireRole(eq(10L), eq(1L), any(ProjectRole.class), any(ProjectRole.class)))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.register("bergamot_oil", 1L, priceJump()))

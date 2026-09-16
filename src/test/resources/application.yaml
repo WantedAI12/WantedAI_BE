@@ -10,11 +10,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-  # 이 파일이 테스트 클래스패스에서 메인 application.yaml을 완전히 대체하므로, 명시적으로
-  # 꺼두지 않으면 Flyway가 기본값(true)으로 켜져 ddl-auto: create-drop과 충돌한다 - 테스트는
-  # 항상 Hibernate가 스키마를 만들게 한다(운영 프로필에서만 Flyway를 쓴다는 원칙과 동일).
-  flyway:
-    enabled: false
 
 jwt:
   secret: test-only-secret-value-that-is-definitely-longer-than-32-bytes-000

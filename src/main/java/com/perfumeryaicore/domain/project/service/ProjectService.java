@@ -53,22 +53,9 @@ public class ProjectService {
 	public ProjectResponse create(Long memberId, CreateProjectRequest dto) {
 		Project project = projectRepository.save(
 				Project.create(dto.name(), dto.description(), dto.startDate(), dto.dueDate()));
-		ProjectRole initialRole = initialRoleFor(memberId);
-		projectMemberRepository.save(ProjectMember.create(project.getId(), memberId, initialRole));
-		log.info("[PROJECT] id={} created by={} ({})", project.getId(), memberId, initialRole);
-		return ProjectResponse.of(project, initialRole, 1);
-	}
-
-	/**
-	 * 게스트 모드: 게스트는 초대할 팀원이 없어 {@code ORG_ADMIN}의 관리 권한(멤버 초대·역할 변경)이
-	 * 의미가 없고, 오히려 {@code ORG_ADMIN}은 요청 작성 쓰기 역할({@code WRITE_ROLES})이 아니라서
-	 * 자기 프로젝트에서 요청 하나 업데이트·확정도 못 하는 문제가 생긴다 - 게스트가 만드는 프로젝트는
-	 * 대신 {@code PERFUMER}로 시작해 체험 흐름 전체(요청 작성부터 후보 생성까지)가 막히지 않게 한다.
-	 */
-	private ProjectRole initialRoleFor(Long memberId) {
-		return memberRepository.findById(memberId).map(Member::isGuest).orElse(false)
-				? ProjectRole.PERFUMER
-				: ProjectRole.ORG_ADMIN;
+		projectMemberRepository.save(ProjectMember.create(project.getId(), memberId, ProjectRole.ORG_ADMIN));
+		log.info("[PROJECT] id={} created by={} (ORG_ADMIN)", project.getId(), memberId);
+		return ProjectResponse.of(project, ProjectRole.ORG_ADMIN, 1);
 	}
 
 	public List<ProjectResponse> listMine(Long memberId) {

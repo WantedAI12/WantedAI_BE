@@ -37,7 +37,7 @@ class ExperimentStatusServiceTest {
 	@BeforeEach
 	void actorHasATransitionRole() {
 		when(candidateService.getProjectId(500L, 1L)).thenReturn(10L);
-		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.PERFUMER);
 		when(candidateService.get(500L, 1L))
 				.thenReturn(new CandidateResponse(500L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
@@ -151,7 +151,7 @@ class ExperimentStatusServiceTest {
 	/** BE-004: 실험 확정/상태 전이는 PERFUMER/FRAGRANCE_RND/PROJECT_MANAGER만 할 수 있다. */
 	@Test
 	void a_non_transition_role_is_forbidden_from_changing_status() {
-		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.changeStatus(500L, 1L, CandidateStatus.REJECTED, null))
