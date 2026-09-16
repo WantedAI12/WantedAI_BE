@@ -107,8 +107,10 @@ public class RegulatoryEvidenceService {
 				dto.previousEvidenceVersion());
 
 		var result = perfumeryAiClient.changeImpact(request, "candidate-" + candidateId, null);
-		log.info("[EVIDENCE] candidate={} change-impact previousVersion={} status={} by={}",
-				candidateId, dto.previousEvidenceVersion(), result.parsed().status(), memberId);
+		log.info("[EVIDENCE] candidate={} change-impact previousVersion={} affectedMaterialCount={} "
+						+ "reviewRequired={} by={}",
+				candidateId, dto.previousEvidenceVersion(), result.parsed().affectedMaterialCount(),
+				result.parsed().reviewRequired(), memberId);
 		return result.parsed();
 	}
 
