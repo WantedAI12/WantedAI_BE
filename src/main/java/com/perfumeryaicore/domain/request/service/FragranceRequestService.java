@@ -45,6 +45,21 @@ public class FragranceRequestService {
 			throw new BusinessException(ErrorCode.REQUEST_ACCESS_DENIED);
 		}
 		accessGuard.requireRole(projectId, memberId, WRITE_ROLES);
+		return createInternal(projectId, memberId, dto);
+	}
+
+	/**
+	 * BE-091~093: 프로젝트 생성 직후 온보딩 전용 진입점. 막 생성된 프로젝트는 생성자(ORG_ADMIN)
+	 * 외에 멤버가 없어 {@link #WRITE_ROLES} 검사를 통과할 수 없으므로 건너뛴다 - 프로젝트를
+	 * 실제로 막 만들었다는 사실 자체가 호출자(ProjectOnboardingService)에서 이미 보장된다.
+	 * 일반적인(둘 이상 멤버가 있는) 프로젝트의 요청 생성에는 쓰지 않는다.
+	 */
+	@Transactional
+	FragranceRequestResponse createAsProjectCreator(Long projectId, Long memberId, CreateFragranceRequestRequest dto) {
+		return createInternal(projectId, memberId, dto);
+	}
+
+	private FragranceRequestResponse createInternal(Long projectId, Long memberId, CreateFragranceRequestRequest dto) {
 		FragranceRequest request = FragranceRequest.create(projectId, memberId, dto.rawText());
 		request.applyUpdate(
 				null,

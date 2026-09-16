@@ -12,6 +12,9 @@ import com.perfumeryaicore.domain.project.dto.response.ProjectMemberResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
 import com.perfumeryaicore.domain.project.service.ProjectImageService;
 import com.perfumeryaicore.domain.project.service.ProjectService;
+import com.perfumeryaicore.domain.request.dto.request.CreateProjectWithFirstRequestRequest;
+import com.perfumeryaicore.domain.request.dto.response.ProjectOnboardingResponse;
+import com.perfumeryaicore.domain.request.service.ProjectOnboardingService;
 import com.perfumeryaicore.global.response.ApiResponse;
 import com.perfumeryaicore.global.response.PageResponse;
 import com.perfumeryaicore.global.security.MemberPrincipal;
@@ -44,6 +47,7 @@ public class ProjectController {
 
 	private final ProjectService projectService;
 	private final ProjectImageService projectImageService;
+	private final ProjectOnboardingService projectOnboardingService;
 
 	@Operation(summary = "프로젝트(테넌트) 생성 — 생성자는 ORG_ADMIN으로 자동 등록")
 	@PostMapping("/projects")
@@ -52,6 +56,16 @@ public class ProjectController {
 			@Valid @RequestBody CreateProjectRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.body(ApiResponse.success(projectService.create(principal.id(), request)));
+	}
+
+	@Operation(summary = "프로젝트 생성 + 첫 요청 생성을 한 번에 (BE-091~093, 체크리스트 자동 초기화 포함)")
+	@PostMapping("/projects/onboarding")
+	public ResponseEntity<ApiResponse<ProjectOnboardingResponse>> createWithFirstRequest(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody CreateProjectWithFirstRequestRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(
+						projectOnboardingService.createProjectWithFirstRequest(principal.id(), request)));
 	}
 
 	@Operation(summary = "내가 속한 프로젝트 목록")
