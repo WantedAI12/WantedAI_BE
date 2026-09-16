@@ -1,14 +1,28 @@
 package com.perfumeryaicore.global.client;
 
+import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
+import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
+import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.ChangeImpactRequest;
+import com.perfumeryaicore.global.client.dto.ChangeImpactResponse;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
+import com.perfumeryaicore.global.client.dto.CompareCandidatesResponse;
+import com.perfumeryaicore.global.client.dto.EvaluateFormulaRequest;
+import com.perfumeryaicore.global.client.dto.EvaluationResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
+import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationRequest;
 import com.perfumeryaicore.global.client.dto.FormulaGenerationResponse;
 import com.perfumeryaicore.global.client.dto.LotionDesignResponse;
 import com.perfumeryaicore.global.client.dto.LotionEstimateRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefRequest;
 import com.perfumeryaicore.global.client.dto.PrepareBriefResponse;
+import com.perfumeryaicore.global.client.dto.ReassessFormulaRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateRequest;
+import com.perfumeryaicore.global.client.dto.ReviseCandidateResponse;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import java.time.Duration;
@@ -58,6 +72,17 @@ public class PerfumeryAiClient {
 	public PerfumeryAiClient(WebClient perfumeryAiWebClient, ModalAiProperties properties) {
 		this.webClient = perfumeryAiWebClient;
 		this.properties = properties;
+	}
+
+	/**
+	 * 지원 제품군·연산별 등록/가동 여부·모델 버전 정보. {@code /health}와 같은 이유로 게이트·레이트
+	 * 리밋 없이 호출한다 - 실제 조향 연산이 아니라 런타임 메타데이터 조회다.
+	 */
+	public AiCapabilitiesResponse capabilities() {
+		requireAuthToken("capabilities", "-");
+		String body = withRetry("capabilities", "-", () -> webClient.get().uri("/v1/ai/capabilities")
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return parse(body, AiCapabilitiesResponse.class);
 	}
 
 	/** 서버 상태·Wheel·registry 확인. 운영 헬스체크 용도(게이트·레이트 리밋 없음). */
@@ -183,6 +208,158 @@ public class PerfumeryAiClient {
 				.retrieve().bodyToMono(String.class).block(blockTimeout()));
 		long latency = System.currentTimeMillis() - startedAt.get();
 		return new PerfumeryAiResult<>(body, parse(body, ClarifyBriefResponse.class), latency);
+	}
+
+	/**
+	 * 공개 자료 연결·운영자 증거 묶음 등록 상태. {@code /v1/catalog}처럼 같은 컨테이너에서 실제
+	 * 연산을 하는 호출이라 동시성 게이트·레이트 리밋을 그대로 적용한다({@code /health}와 다름).
+	 */
+	public PerfumeryAiResult<EvidenceStatusResponse> evidenceStatus(String traceId) {
+		String body = serializedCall("evidence-status", traceId, null, () -> webClient.get().uri("/v2/evidence/status")
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return new PerfumeryAiResult<>(body, parse(body, EvidenceStatusResponse.class), 0L);
+	}
+
+	/** 원료별 공개 자료 연결 범위. {@code limit} 최대 500(Modal 계약). */
+	public PerfumeryAiResult<EvidenceCoverageResponse> evidenceCoverage(int offset, int limit, String traceId) {
+		String body = serializedCall("evidence-coverage", traceId, null, () -> webClient.get()
+				.uri(uriBuilder -> uriBuilder.path("/v2/evidence/coverage")
+						.queryParam("offset", offset)
+						.queryParam("limit", limit)
+						.build())
+				.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		return new PerfumeryAiResult<>(body, parse(body, EvidenceCoverageResponse.class), 0L);
+	}
+
+	/** 배합·제품·지역·비용·정책 조건의 규제·공급 근거를 평가한다 - 실제 후보 확정과는 별개다. */
+	public PerfumeryAiResult<AssessEvidenceResponse> assessEvidence(
+			AssessEvidenceRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-assess-evidence", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/assess-evidence")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, AssessEvidenceResponse.class), latency);
+	}
+
+	/**
+	 * 원료·공급 근거 버전이 바뀌었을 때 기존 배합이 여전히 유효한지 재평가한다
+	 * ({@code previous_evidence_version} 대비). {@code assess-evidence}와 달리 진단 모드 우회가
+	 * 없다 - 등록된 근거가 없으면 항상 422로 거부된다(V80 연동자료, 2026-09-15 확인). 성공(200)
+	 * 응답의 전체 스키마는 AI팀 확인 대기 중({@link ChangeImpactResponse} 참고).
+	 */
+	public PerfumeryAiResult<ChangeImpactResponse> changeImpact(
+			ChangeImpactRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-change-impact", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/change-impact")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, ChangeImpactResponse.class), latency);
+	}
+
+	/**
+	 * 확인된 검토 결과({@code review_id})를 조향식 후보로 확정한다. 등록된 규제·공급 근거가
+	 * 없으면 일반 호출은 422/abstained로 거부된다. {@code diagnostic_only=true}면 근거 미등록
+	 * 상태에서도 HTTP 200을 반환하지만 {@code candidates}는 비고 결과는
+	 * {@code diagnostic_candidates}에만 담긴다(AI 개발팀 확인, 2026-09-16) - 정식 승인 후보가
+	 * 아니므로 호출부가 반드시 {@link EvaluationResponse#isDiagnostic()}으로 구분해야 한다.
+	 */
+	public PerfumeryAiResult<EvaluationResponse> evaluateFormula(
+			EvaluateFormulaRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-evaluate", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/evaluate")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, EvaluationResponse.class), latency);
+	}
+
+	/** 고정 배합을 유지한 채 조건만 재평가한다. {@link #evaluateFormula}와 같은 근거·응답 스키마 제약. */
+	public PerfumeryAiResult<EvaluationResponse> reassessFormula(
+			ReassessFormulaRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-reassess", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/reassess")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, EvaluationResponse.class), latency);
+	}
+
+	/**
+	 * BE가 보존한 후보 평가 스냅샷 2~10개를 비교한다. evaluate/reassess 성공과 달리 근거 등록을
+	 * 직접 요구하지 않는다(README 확인) - {@code evaluation}에 진단(diagnostic) 결과를 넣어도 된다.
+	 */
+	public PerfumeryAiResult<CompareCandidatesResponse> compareCandidates(
+			CompareCandidatesRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-compare", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/compare")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, CompareCandidatesResponse.class), latency);
+	}
+
+	/**
+	 * 저장 후보와 자연어 지시로 수정된 입력/검토 결과를 만든다. 새 후보를 저장·승인하지
+	 * 않는다 - {@code next_operation}이 안내하는 재확인 절차를 호출부가 따라야 한다.
+	 */
+	public PerfumeryAiResult<ReviseCandidateResponse> reviseCandidate(
+			ReviseCandidateRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("briefs-revise", traceId, markStart,
+				() -> webClient.post().uri("/v2/briefs/revise")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, ReviseCandidateResponse.class), latency);
 	}
 
 	// --- 호출 파이프라인: 인증 확인 → 동시성 게이트 → 레이트 리밋 → 재시도 ---

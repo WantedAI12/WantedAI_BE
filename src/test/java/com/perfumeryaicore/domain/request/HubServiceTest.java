@@ -88,17 +88,24 @@ class HubServiceTest {
 		assertThat(service.summary(MEMBER_ID).dueSoonProjects()).isEmpty();
 	}
 
+	/** BE-109: '내 체크리스트'는 실제로 나에게 배정되고 아직 완료되지 않은 항목만 모은다. */
 	@Test
-	void summary_collects_only_incomplete_checklist_items_across_all_my_projects() {
+	void summary_collects_only_my_incomplete_assigned_checklist_items_across_all_my_projects() {
 		when(projectService.listMine(MEMBER_ID)).thenReturn(List.of(project(1L, null), project(2L, null)));
 		FragranceRequest workA = work(100L, 1L);
 		FragranceRequest workB = work(200L, 2L);
 		when(requestRepository.findByProjectIdIn(List.of(1L, 2L))).thenReturn(List.of(workA, workB));
 
-		WorkChecklistItem pending = WorkChecklistItem.create(100L, WorkChecklistItemType.FRAGRANCE_BRIEF);
+		WorkChecklistItem assignedToMe = WorkChecklistItem.create(100L, WorkChecklistItemType.FRAGRANCE_BRIEF);
+		assignedToMe.assignTo(MEMBER_ID, 0, MEMBER_ID);
 		WorkChecklistItem done = WorkChecklistItem.create(200L, WorkChecklistItemType.SAFETY_REVIEW);
-		done.setCompleted(true, 0, MEMBER_ID);
-		when(checklistItemRepository.findByRequestIdIn(List.of(100L, 200L))).thenReturn(List.of(pending, done));
+		done.assignTo(MEMBER_ID, 0, MEMBER_ID);
+		done.setCompleted(true, 1, MEMBER_ID);
+		WorkChecklistItem assignedToSomeoneElse = WorkChecklistItem.create(200L, WorkChecklistItemType.TESTING);
+		assignedToSomeoneElse.assignTo(999L, 0, MEMBER_ID);
+		WorkChecklistItem unassigned = WorkChecklistItem.create(100L, WorkChecklistItemType.SENSORY_EVALUATION);
+		when(checklistItemRepository.findByRequestIdIn(List.of(100L, 200L)))
+				.thenReturn(List.of(assignedToMe, done, assignedToSomeoneElse, unassigned));
 
 		var items = service.summary(MEMBER_ID).pendingChecklistItems();
 

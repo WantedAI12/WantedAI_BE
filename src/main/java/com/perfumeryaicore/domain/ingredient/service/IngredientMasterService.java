@@ -2,18 +2,27 @@ package com.perfumeryaicore.domain.ingredient.service;
 
 import com.perfumeryaicore.domain.ingredient.dto.request.RegisterIngredientMasterRequest;
 import com.perfumeryaicore.domain.ingredient.dto.request.UpdateIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.response.BulkImportResultResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.ImportFailureResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientMasterResponse;
+import com.perfumeryaicore.domain.ingredient.entity.IngredientImportFailure;
 import com.perfumeryaicore.domain.ingredient.entity.IngredientMaster;
+import com.perfumeryaicore.domain.ingredient.repository.IngredientImportFailureRepository;
 import com.perfumeryaicore.domain.ingredient.repository.IngredientMasterRepository;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.response.PageResponse;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 원료 마스터 등록·조회(BE-062). 프로젝트에 매인 관측 데이터({@link IngredientQueryService})와
@@ -28,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class IngredientMasterService {
 
 	private final IngredientMasterRepository repository;
+	private final IngredientImportFailureRepository importFailureRepository;
+	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
 	@Transactional
 	public IngredientMasterResponse register(Long memberId, RegisterIngredientMasterRequest dto) {
@@ -39,6 +50,78 @@ public class IngredientMasterService {
 				dto.supplierName(), dto.safetyNotes(), dto.regulatoryNotes(), memberId));
 		log.info("[INGREDIENT] master registered externalId={} by={}", dto.externalId(), memberId);
 		return IngredientMasterResponse.from(saved);
+	}
+
+	/**
+	 * BE-063~066: 대량 등록. 한 행이 이미 등록됐거나(DB 기준) 같은 배치 안에서 중복이면 그 행만
+	 * {@link IngredientImportFailure}로 남기고 나머지는 그대로 등록한다 - 행 하나 때문에 전체를
+	 * 되돌리지 않는다. 실패 행은 원본 요청을 그대로 보관해 {@link #retryImportFailure}로
+	 * 다시 시도할 수 있다.
+	 */
+	@Transactional
+	public BulkImportResultResponse bulkImport(Long memberId, List<RegisterIngredientMasterRequest> items) {
+		Set<String> existingExternalIds = new HashSet<>(repository.findByExternalIdIn(
+				items.stream().map(RegisterIngredientMasterRequest::externalId).toList())
+				.stream().map(IngredientMaster::getExternalId).toList());
+
+		Set<String> seenInBatch = new HashSet<>();
+		List<RegisterIngredientMasterRequest> valid = new ArrayList<>();
+		List<IngredientImportFailure> failures = new ArrayList<>();
+		for (RegisterIngredientMasterRequest item : items) {
+			if (existingExternalIds.contains(item.externalId())) {
+				failures.add(toFailure(item, "이미 등록된 외부 원료 ID입니다.", memberId));
+			} else if (!seenInBatch.add(item.externalId())) {
+				failures.add(toFailure(item, "같은 배치 내에 중복된 외부 원료 ID입니다.", memberId));
+			} else {
+				valid.add(item);
+			}
+		}
+
+		List<IngredientMaster> saved = repository.saveAll(valid.stream()
+				.map(dto -> IngredientMaster.register(dto.externalId(), dto.casNumber(), dto.name(),
+						joinSynonyms(dto.synonyms()), dto.supplierName(), dto.safetyNotes(), dto.regulatoryNotes(),
+						memberId))
+				.toList());
+		List<IngredientImportFailure> savedFailures = importFailureRepository.saveAll(failures);
+
+		log.info("[INGREDIENT] bulk import total={} succeeded={} failed={} by={}",
+				items.size(), saved.size(), savedFailures.size(), memberId);
+		return new BulkImportResultResponse(
+				items.size(), saved.size(), savedFailures.size(),
+				saved.stream().map(IngredientMasterResponse::from).toList(),
+				savedFailures.stream().map(ImportFailureResponse::from).toList());
+	}
+
+	/** 아직 해결되지 않은 대량 등록 실패 행(재처리 큐)을 오래된 순으로 조회한다. */
+	public PageResponse<ImportFailureResponse> pendingImportFailures(Pageable pageable) {
+		return PageResponse.of(
+				importFailureRepository.findByResolvedAtIsNullOrderByCreatedAtAsc(pageable)
+						.map(ImportFailureResponse::from));
+	}
+
+	/** 저장해 둔 원본 요청으로 등록을 다시 시도한다. 성공하면 해결로 표시하고, 다시 실패하면 사유만 갱신한다. */
+	@Transactional
+	public ImportFailureResponse retryImportFailure(Long failureId, Long memberId) {
+		IngredientImportFailure failure = importFailureRepository.findById(failureId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.INGREDIENT_IMPORT_FAILURE_NOT_FOUND));
+		if (failure.isResolved()) {
+			throw new BusinessException(ErrorCode.INGREDIENT_IMPORT_FAILURE_ALREADY_RESOLVED);
+		}
+		RegisterIngredientMasterRequest dto = jsonMapper.readValue(
+				failure.getPayloadJson(), RegisterIngredientMasterRequest.class);
+		if (repository.existsByExternalId(dto.externalId())) {
+			failure.recordRetryFailure("이미 등록된 외부 원료 ID입니다.");
+			return ImportFailureResponse.from(failure);
+		}
+		register(memberId, dto);
+		failure.resolve(LocalDateTime.now());
+		log.info("[INGREDIENT] import failure retried and resolved id={} externalId={} by={}",
+				failureId, dto.externalId(), memberId);
+		return ImportFailureResponse.from(failure);
+	}
+
+	private IngredientImportFailure toFailure(RegisterIngredientMasterRequest item, String message, Long memberId) {
+		return IngredientImportFailure.of(item.externalId(), jsonMapper.writeValueAsString(item), message, memberId);
 	}
 
 	@Transactional

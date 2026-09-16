@@ -23,7 +23,8 @@ import lombok.NoArgsConstructor;
  * 6개가 전부 미완료 상태로 자동 생성된다.
  *
  * <p>{@code revision}으로 낙관적 잠금을 구현한다({@link com.perfumeryaicore.domain.formula.entity.CandidateMemo}와
- * 같은 패턴) — 동시에 같은 항목을 체크/해제하면 나중 요청이 {@link ErrorCode#WORK_CHECKLIST_ITEM_CONFLICT}로 거부된다.
+ * 같은 패턴) — 완료 상태·담당자 배정 어느 쪽이든 동시에 바꾸면 나중 요청이
+ * {@link ErrorCode#WORK_CHECKLIST_ITEM_CONFLICT}로 거부된다(두 변경이 하나의 revision을 공유).
  */
 @Entity
 @Getter
@@ -56,6 +57,16 @@ public class WorkChecklistItem extends BaseTimeEntity {
 	@Column(name = "completed_by")
 	private Long completedBy;
 
+	/** 이 항목을 처리할 담당자. 미배정이면 {@code null}(프로젝트 멤버 누구나 처리 가능한 상태). */
+	@Column(name = "assigned_to")
+	private Long assignedTo;
+
+	@Column(name = "assigned_by")
+	private Long assignedBy;
+
+	@Column(name = "assigned_at")
+	private LocalDateTime assignedAt;
+
 	@Column(nullable = false)
 	private int revision;
 
@@ -81,6 +92,23 @@ public class WorkChecklistItem extends BaseTimeEntity {
 		this.completed = completed;
 		this.completedAt = completed ? LocalDateTime.now() : null;
 		this.completedBy = completed ? editorId : null;
+		this.revision++;
+	}
+
+	/**
+	 * 담당자를 지정하거나({@code assigneeId} 있음) 배정을 해제한다({@code null}). 완료 여부와
+	 * 독립적으로 바꿀 수 있다 - 이미 완료된 항목의 담당 기록을 정정하는 경우도 있어서다.
+	 *
+	 * @param expectedRevision {@link #setCompleted}와 같은 낙관적 잠금 - 완료/배정 어느 쪽이든
+	 *     먼저 바뀌면 나머지 요청은 409로 거부된다(하나의 revision을 공유).
+	 */
+	public void assignTo(Long assigneeId, int expectedRevision, Long assignerId) {
+		if (this.revision != expectedRevision) {
+			throw new BusinessException(ErrorCode.WORK_CHECKLIST_ITEM_CONFLICT);
+		}
+		this.assignedTo = assigneeId;
+		this.assignedBy = assigneeId != null ? assignerId : null;
+		this.assignedAt = assigneeId != null ? LocalDateTime.now() : null;
 		this.revision++;
 	}
 }

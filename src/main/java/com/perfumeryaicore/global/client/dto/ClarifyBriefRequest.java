@@ -34,4 +34,12 @@ public record ClarifyBriefRequest(
 			JsonNode request, JsonNode evidencePolicy, String preparedResultId, JsonNode answers) {
 		return new ClarifyBriefRequest(request, evidencePolicy, null, null, null, preparedResultId, answers);
 	}
+
+	/** {@code diagnostic_only} 모드로 시작한 prepare를 이어가는 clarify - 모드가 유지되어야 review_id를 재사용할 수 있다. */
+	public static ClarifyBriefRequest of(
+			JsonNode request, JsonNode evidencePolicy, String preparedResultId, JsonNode answers,
+			boolean diagnosticOnly) {
+		return new ClarifyBriefRequest(
+				request, evidencePolicy, null, null, diagnosticOnly, preparedResultId, answers);
+	}
 }

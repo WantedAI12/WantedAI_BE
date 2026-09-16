@@ -24,6 +24,13 @@ public record BriefClarifyRequest(
 		Integer maximumLeadTimeDays,
 
 		@Positive
-		Double maximumPurchaseCostUsd
+		Double maximumPurchaseCostUsd,
+
+		/** {@link BriefReviewRequest#diagnosticOnly}와 같은 이유 - prepare가 진단 모드였다면 clarify도 유지해야 한다. */
+		Boolean diagnosticOnly
 ) {
+
+	public boolean isDiagnosticOnly() {
+		return Boolean.TRUE.equals(diagnosticOnly);
+	}
 }
