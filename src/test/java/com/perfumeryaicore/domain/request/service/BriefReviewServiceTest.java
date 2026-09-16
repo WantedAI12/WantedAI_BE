@@ -84,6 +84,40 @@ class BriefReviewServiceTest {
 		assertThat(formula.get("product_category").asString()).isEqualTo("eau_de_parfum");
 	}
 
+	/**
+	 * FragranceRequest에 max_formula_cost_per_kg를 담을 필드가 아직 없어, 비워서 보내면 v2
+	 * prepare가 매번 needs_input으로 이 필드를 되물어 진행이 막힌다(AI 확인) - Modal 스키마
+	 * 자체 기본값(180.0)을 항상 채워 보낸다.
+	 */
+	@Test
+	void prepare_always_fills_max_formula_cost_per_kg_with_the_modal_default() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<PrepareBriefRequest> captor = ArgumentCaptor.forClass(PrepareBriefRequest.class);
+		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
+
+		service.prepare(REQUEST_ID, MEMBER_ID, BriefReviewRequest.empty());
+
+		assertThat(captor.getValue().request().get("formula").get("max_formula_cost_per_kg").asDouble())
+				.isEqualTo(180.0);
+	}
+
+	/** reassess 진행 순서 1단계(AI 확인): 고정 배합을 리뷰할 때는 prepare에도 같은 lines를 넣는다. */
+	@Test
+	void prepare_forwards_lines_when_reviewing_a_fixed_formula() {
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
+		ArgumentCaptor<PrepareBriefRequest> captor = ArgumentCaptor.forClass(PrepareBriefRequest.class);
+		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
+
+		service.prepare(REQUEST_ID, MEMBER_ID,
+				new BriefReviewRequest(null, null, null, List.of(new EvidenceLine("linalyl_acetate", 100.0)), true));
+
+		JsonNode lines = captor.getValue().lines();
+		assertThat(lines.get(0).get("ingredient_id").asString()).isEqualTo("linalyl_acetate");
+		assertThat(lines.get(0).get("concentrate_percent").asDouble()).isEqualTo(100.0);
+	}
+
 	@Test
 	void prepare_includes_only_the_evidence_policy_fields_that_were_provided() {
 		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(fullyStructuredRequest());
@@ -91,7 +125,7 @@ class BriefReviewServiceTest {
 		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
 				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
 
-		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(1000.0, null, null, null));
+		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(1000.0, null, null, null, null));
 
 		JsonNode policy = captor.getValue().evidencePolicy();
 		assertThat(policy.get("finished_batch_mass_g").asDouble()).isEqualTo(1000.0);
@@ -138,7 +172,7 @@ class BriefReviewServiceTest {
 		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
 				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
 
-		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(null, null, null, true));
+		service.prepare(REQUEST_ID, MEMBER_ID, new BriefReviewRequest(null, null, null, null, true));
 
 		assertThat(captor.getValue().diagnosticOnly()).isTrue();
 	}
@@ -187,7 +221,7 @@ class BriefReviewServiceTest {
 				.thenReturn(new PerfumeryAiResult<>("{}", diagnosticEvaluationResponse("review-9"), 10L));
 
 		EvaluateDiagnosticRequest dto = new EvaluateDiagnosticRequest("a".repeat(64), null, null, null);
-		EvaluationResponse response = service.evaluateDiagnostic(REQUEST_ID, MEMBER_ID, dto);
+		EvaluationResponse response = service.evaluateDiagnostic(REQUEST_ID, MEMBER_ID, dto).parsed();
 
 		assertThat(response.isDiagnostic()).isTrue();
 		assertThat(response.reviewId()).isEqualTo("review-9");
@@ -204,7 +238,7 @@ class BriefReviewServiceTest {
 
 		ReassessDiagnosticRequest dto = new ReassessDiagnosticRequest(
 				"b".repeat(64), List.of(new EvidenceLine("linalyl_acetate", 100.0)), null, null, null);
-		EvaluationResponse response = service.reassessDiagnostic(REQUEST_ID, MEMBER_ID, dto);
+		EvaluationResponse response = service.reassessDiagnostic(REQUEST_ID, MEMBER_ID, dto).parsed();
 
 		assertThat(response.isDiagnostic()).isTrue();
 		assertThat(captor.getValue().confirmedReviewId()).isEqualTo("b".repeat(64));
