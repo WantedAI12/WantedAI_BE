@@ -26,12 +26,16 @@ public record FormulaGenerationResponse(
 		String formulaId,
 
 		/**
-		 * 항상 숫자는 아니다 - {@code "heuristic_only"} 같은 문자열 상태값으로 올 때가 있다
-		 * (실서버 확인 완료). 숫자였던 값도 문자열로 그대로 보존하며, 임의로 숫자로 바꾸거나
-		 * 0으로 대체하지 않는다. 숫자 신뢰도가 필요하면 별도 필드로 계약해야 한다.
+		 * V89-backend-contract-rc01부터 nullable 숫자 계약으로 바뀌었다(AI팀 확인) - 계산된 수치
+		 * 신뢰도가 없으면 {@code null}이고, {@code "heuristic_only"} 같은 설명은 {@link #confidenceKind}로
+		 * 분리됐다. 이전엔 문자열 상태값이 섞여 와서 {@code String}으로 받았었다(이 필드는 어디서도
+		 * 읽지 않아 타입 변경이 안전함).
 		 */
 		@JsonProperty("confidence")
-		String confidence,
+		Double confidence,
+
+		@JsonProperty("confidence_kind")
+		String confidenceKind,
 
 		@JsonProperty("estimated_concentrate_cost_per_kg")
 		Double estimatedConcentrateCostPerKg,

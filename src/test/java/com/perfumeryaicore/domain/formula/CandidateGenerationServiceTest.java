@@ -150,7 +150,7 @@ class CandidateGenerationServiceTest {
 		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
-				"prototype_ready", "안전 조건 충족", "f-1", "0.9", 42.0,
+				"prototype_ready", "안전 조건 충족", "f-1", 0.9, null, 42.0,
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
@@ -190,7 +190,7 @@ class CandidateGenerationServiceTest {
 		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
 
 		FormulaGenerationResponse rejected = new FormulaGenerationResponse(
-				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", null, null, null,
+				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", null, null, null, null,
 				List.of(), null, null, null, null, null, null, null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 800L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
@@ -235,7 +235,7 @@ class CandidateGenerationServiceTest {
 		when(formulaRequestMapper.toModalRequest(any(FragranceRequest.class))).thenReturn(modalRequest);
 
 		FormulaGenerationResponse parsed = new FormulaGenerationResponse(
-				"prototype_ready", "안전 조건 충족", "f-1", "0.9", 42.0,
+				"prototype_ready", "안전 조건 충족", "f-1", 0.9, null, 42.0,
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
