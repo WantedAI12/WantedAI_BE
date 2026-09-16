@@ -79,8 +79,8 @@ public class IngredientMaster extends BaseTimeEntity {
 	@Column(name = "price_per_kg")
 	private Double pricePerKg;
 
-	/** 통화·추정 여부를 가격과 함께 보존한다(예: "USD_estimate") - 현재 견적으로 오인되면 안 된다. */
-	@Column(name = "price_currency", length = 20)
+	/** 통화·추정 여부를 가격과 함께 보존한다(예: "USD_estimate_not_supplier_quote") - 현재 견적으로 오인되면 안 된다. */
+	@Column(name = "price_currency", length = 50)
 	private String priceCurrency;
 
 	@Column(name = "risk_tier")

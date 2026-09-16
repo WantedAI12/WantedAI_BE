@@ -18,7 +18,7 @@ public record RegisterIngredientMasterRequest(
 		@Size(max = 200)
 		String name,
 
-		List<@Size(max = 100) String> synonyms,
+		List<@Size(max = 150) String> synonyms,
 
 		@Size(max = 200)
 		String supplierName,
@@ -38,8 +38,8 @@ public record RegisterIngredientMasterRequest(
 
 		Double pricePerKg,
 
-		/** 통화·추정 여부(예: "USD_estimate"). 가격과 항상 같이 저장한다. */
-		@Size(max = 20)
+		/** 통화·추정 여부(예: "USD_estimate_not_supplier_quote"). 가격과 항상 같이 저장한다. */
+		@Size(max = 50)
 		String priceCurrency,
 
 		Integer riskTier
