@@ -1,9 +1,12 @@
 package com.perfumeryaicore.domain.ingredient.controller;
 
+import com.perfumeryaicore.domain.ingredient.dto.request.BulkImportIngredientMastersRequest;
 import com.perfumeryaicore.domain.ingredient.dto.request.CatalogSyncRequest;
 import com.perfumeryaicore.domain.ingredient.dto.request.RegisterIngredientMasterRequest;
 import com.perfumeryaicore.domain.ingredient.dto.request.UpdateIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.response.BulkImportResultResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.CatalogSyncResultResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.ImportFailureResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientDetailResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientMasterResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientResponse;
@@ -110,5 +113,30 @@ public class IngredientController {
 			@PathVariable String externalId,
 			@Valid @RequestBody UpdateIngredientMasterRequest request) {
 		return ApiResponse.success(ingredientMasterService.update(externalId, principal.id(), request));
+	}
+
+	@Operation(summary = "원료 마스터 대량 등록 (BE-063~066, 행 단위 부분 성공 — 실패 행은 재처리 큐에 남음)")
+	@PostMapping("/ingredient-master/bulk-import")
+	public ResponseEntity<ApiResponse<BulkImportResultResponse>> bulkImportMaster(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@Valid @RequestBody BulkImportIngredientMastersRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success(ingredientMasterService.bulkImport(principal.id(), request.items())));
+	}
+
+	@Operation(summary = "대량 등록 실패 행(재처리 큐) 목록 — 아직 해결되지 않은 것만, 오래된 순")
+	@GetMapping("/ingredient-master/import-failures")
+	public ApiResponse<PageResponse<ImportFailureResponse>> importFailures(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return ApiResponse.success(ingredientMasterService.pendingImportFailures(pageable));
+	}
+
+	@Operation(summary = "대량 등록 실패 행 재처리 (원본 요청으로 다시 등록 시도)")
+	@PostMapping("/ingredient-master/import-failures/{failureId}/retry")
+	public ApiResponse<ImportFailureResponse> retryImportFailure(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long failureId) {
+		return ApiResponse.success(ingredientMasterService.retryImportFailure(failureId, principal.id()));
 	}
 }

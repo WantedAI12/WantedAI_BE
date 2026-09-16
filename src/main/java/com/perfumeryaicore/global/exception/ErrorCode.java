@@ -83,6 +83,8 @@ public enum ErrorCode {
 	INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "생성된 조향식에서 확인된 적 없는 원료입니다."),
 	INGREDIENT_MASTER_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 원료 마스터를 찾을 수 없습니다."),
 	INGREDIENT_MASTER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 외부 원료 ID입니다."),
+	INGREDIENT_IMPORT_FAILURE_NOT_FOUND(HttpStatus.NOT_FOUND, "대량 등록 실패 기록을 찾을 수 없습니다."),
+	INGREDIENT_IMPORT_FAILURE_ALREADY_RESOLVED(HttpStatus.CONFLICT, "이미 해결된 실패 기록입니다."),
 
 	// 공급 변경 영향(Supply)
 	SUPPLY_CHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "공급 변경 이벤트를 찾을 수 없습니다."),

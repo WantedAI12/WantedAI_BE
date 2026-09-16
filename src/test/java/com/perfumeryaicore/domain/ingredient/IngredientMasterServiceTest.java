@@ -8,8 +8,12 @@ import static org.mockito.Mockito.when;
 
 import com.perfumeryaicore.domain.ingredient.dto.request.RegisterIngredientMasterRequest;
 import com.perfumeryaicore.domain.ingredient.dto.request.UpdateIngredientMasterRequest;
+import com.perfumeryaicore.domain.ingredient.dto.response.BulkImportResultResponse;
+import com.perfumeryaicore.domain.ingredient.dto.response.ImportFailureResponse;
 import com.perfumeryaicore.domain.ingredient.dto.response.IngredientMasterResponse;
+import com.perfumeryaicore.domain.ingredient.entity.IngredientImportFailure;
 import com.perfumeryaicore.domain.ingredient.entity.IngredientMaster;
+import com.perfumeryaicore.domain.ingredient.repository.IngredientImportFailureRepository;
 import com.perfumeryaicore.domain.ingredient.repository.IngredientMasterRepository;
 import com.perfumeryaicore.domain.ingredient.service.IngredientMasterService;
 import com.perfumeryaicore.global.exception.BusinessException;
@@ -22,7 +26,10 @@ import org.junit.jupiter.api.Test;
 class IngredientMasterServiceTest {
 
 	private final IngredientMasterRepository repository = mock(IngredientMasterRepository.class);
-	private final IngredientMasterService service = new IngredientMasterService(repository);
+	private final IngredientImportFailureRepository importFailureRepository =
+			mock(IngredientImportFailureRepository.class);
+	private final IngredientMasterService service =
+			new IngredientMasterService(repository, importFailureRepository);
 
 	@Test
 	void register_rejects_a_duplicate_external_id() {
@@ -103,5 +110,55 @@ class IngredientMasterServiceTest {
 		assertThat(response.casNumber()).isEqualTo("54464-57-2");
 		assertThat(response.name()).isEqualTo("Iso E Super (updated)");
 		assertThat(response.supplierName()).isEqualTo("Givaudan");
+	}
+
+	private RegisterIngredientMasterRequest importDto(String externalId) {
+		return new RegisterIngredientMasterRequest(externalId, null, "Name " + externalId, null, null, null, null);
+	}
+
+	/** BE-063~066: DB에 이미 있는 행과 배치 내부 중복 행만 실패로 남고, 나머지는 그대로 등록된다. */
+	@Test
+	void bulkImport_registers_valid_rows_and_queues_duplicates_as_failures() {
+		when(repository.findByExternalIdIn(any())).thenReturn(
+				List.of(IngredientMaster.register("already_registered", null, "Existing", null, null, null, null, 1L)));
+		when(repository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+		when(importFailureRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		BulkImportResultResponse result = service.bulkImport(1L, List.of(
+				importDto("new_one"),
+				importDto("already_registered"),
+				importDto("new_two"),
+				importDto("new_two")));
+
+		assertThat(result.totalCount()).isEqualTo(4);
+		assertThat(result.succeededCount()).isEqualTo(2);
+		assertThat(result.failedCount()).isEqualTo(2);
+		assertThat(result.registered()).extracting("externalId").containsExactlyInAnyOrder("new_one", "new_two");
+		assertThat(result.failures()).extracting("externalId")
+				.containsExactlyInAnyOrder("already_registered", "new_two");
+	}
+
+	@Test
+	void retryImportFailure_reregisters_the_stored_payload_and_resolves_it() {
+		IngredientImportFailure failure = IngredientImportFailure.of(
+				"retry_me", "{\"externalId\":\"retry_me\",\"name\":\"Retry Me\"}", "이미 등록된 외부 원료 ID입니다.", 1L);
+		when(importFailureRepository.findById(9L)).thenReturn(Optional.of(failure));
+		when(repository.existsByExternalId("retry_me")).thenReturn(false);
+		when(repository.save(any(IngredientMaster.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		ImportFailureResponse response = service.retryImportFailure(9L, 1L);
+
+		assertThat(response.resolved()).isTrue();
+	}
+
+	@Test
+	void retryImportFailure_rejects_an_already_resolved_failure() {
+		IngredientImportFailure failure = IngredientImportFailure.of("x", "{}", "err", 1L);
+		failure.resolve(java.time.LocalDateTime.now());
+		when(importFailureRepository.findById(9L)).thenReturn(Optional.of(failure));
+
+		assertThatThrownBy(() -> service.retryImportFailure(9L, 1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.INGREDIENT_IMPORT_FAILURE_ALREADY_RESOLVED);
 	}
 }
