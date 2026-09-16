@@ -45,7 +45,7 @@ public class ExperimentStatusService {
 	public ExperimentStatusLogResponse changeStatus(Long candidateId, Long memberId, CandidateStatus target,
 			String reason) {
 		Long projectId = candidateService.getProjectId(candidateId, memberId);
-		accessGuard.requireRole(projectId, memberId, TRANSITION_ROLES);
+		accessGuard.requireWriteRole(projectId, memberId, TRANSITION_ROLES);
 
 		// BE-040: 전이 직전 상태·현재 버전을 먼저 읽어 이력에 고정한다.
 		CandidateResponse candidate = candidateService.get(candidateId, memberId);
