@@ -26,10 +26,9 @@ public record FormulaGenerationResponse(
 		String formulaId,
 
 		/**
-		 * V89-backend-contract-rc01부터 nullable 숫자 계약으로 바뀌었다(AI팀 확인) - 계산된 수치
-		 * 신뢰도가 없으면 {@code null}이고, {@code "heuristic_only"} 같은 설명은 {@link #confidenceKind}로
-		 * 분리됐다. 이전엔 문자열 상태값이 섞여 와서 {@code String}으로 받았었다(이 필드는 어디서도
-		 * 읽지 않아 타입 변경이 안전함).
+		 * AI팀 확인(2026-09-16): 실제 운영 배포 기준으로 숫자 또는 {@code null}만 온다
+		 * (예: {@code {"confidence": null, "confidence_kind": "heuristic_only"}}) - 더 이상
+		 * 문자열로 오지 않는다. 설명값은 {@link #confidenceKind}로 분리됐다.
 		 */
 		@JsonProperty("confidence")
 		Double confidence,
