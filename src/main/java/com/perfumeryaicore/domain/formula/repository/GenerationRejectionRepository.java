@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface GenerationRejectionRepository extends JpaRepository<GenerationRejection, Long> {
 
 	List<GenerationRejection> findByRequestIdOrderByCreatedAtDesc(Long requestId);
+
+	List<GenerationRejection> findByProjectId(Long projectId);
 }
