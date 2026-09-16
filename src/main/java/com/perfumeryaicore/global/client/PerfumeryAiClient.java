@@ -253,8 +253,8 @@ public class PerfumeryAiClient {
 	/**
 	 * 원료·공급 근거 버전이 바뀌었을 때 기존 배합이 여전히 유효한지 재평가한다
 	 * ({@code previous_evidence_version} 대비). {@code assess-evidence}와 달리 진단 모드 우회가
-	 * 없다 - 등록된 근거가 없으면 항상 422로 거부된다(V80 연동자료, 2026-09-15 확인). 성공(200)
-	 * 응답의 전체 스키마는 AI팀 확인 대기 중({@link ChangeImpactResponse} 참고).
+	 * 없다 - 등록된 근거가 없으면 항상 422로 거부된다(V80/V89 연동자료 확인). 성공(200) 응답
+	 * 스키마는 V89-backend-contract-rc01 실제 호출로 확인됐다({@link ChangeImpactResponse} 참고).
 	 */
 	public PerfumeryAiResult<ChangeImpactResponse> changeImpact(
 			ChangeImpactRequest request, String traceId, Runnable onSlotAcquired) {

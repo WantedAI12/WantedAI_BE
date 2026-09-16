@@ -146,7 +146,10 @@ class RegulatoryEvidenceServiceTest {
 	void changeImpact_builds_lines_from_the_candidate_current_version_and_forwards_the_previous_version() {
 		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidateWithIngredients());
 		ArgumentCaptor<ChangeImpactRequest> captor = ArgumentCaptor.forClass(ChangeImpactRequest.class);
-		ChangeImpactResponse response = new ChangeImpactResponse("rd-change-impact-1", "blocked", "scope", List.of(), "result-1");
+		ChangeImpactResponse response = new ChangeImpactResponse("rd-change-impact-1",
+				JSON.createObjectNode(), JSON.createObjectNode(), JSON.createObjectNode(), 1, true, false, false,
+				"public_observation_comparison_not_operator_approval_or_inventory_reservation", "result-1",
+				JSON.createObjectNode());
 		when(perfumeryAiClient.changeImpact(captor.capture(), any(), any()))
 				.thenReturn(new PerfumeryAiResult<>("{}", response, 0L));
 
@@ -154,7 +157,8 @@ class RegulatoryEvidenceServiceTest {
 				"evidence-v3", TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, 1000.0, 10, 100.0);
 		ChangeImpactResponse result = service.changeImpact(CANDIDATE_ID, MEMBER_ID, dto);
 
-		assertThat(result.status()).isEqualTo("blocked");
+		assertThat(result.affectedMaterialCount()).isEqualTo(1);
+		assertThat(result.reviewRequired()).isTrue();
 		assertThat(captor.getValue().previousEvidenceVersion()).isEqualTo("evidence-v3");
 		assertThat(captor.getValue().lines()).hasSize(1);
 		assertThat(captor.getValue().lines().get(0).ingredientId()).isEqualTo("linalyl_acetate");
