@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * BE-063~066: 원료 마스터 대량 등록 중 실패한 행. {@code payloadJson}에 원본 요청을 그대로
@@ -33,7 +34,7 @@ public class IngredientImportFailure extends BaseTimeEntity {
 	private String externalId;
 
 	@Lob
-	@Column(name = "payload_json", nullable = false)
+	@Column(name = "payload_json", nullable = false, length = Length.LONG32)
 	private String payloadJson;
 
 	@Column(name = "error_message", nullable = false, length = 1000)

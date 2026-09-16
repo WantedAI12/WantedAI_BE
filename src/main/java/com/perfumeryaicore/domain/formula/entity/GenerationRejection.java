@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 조향 AI가 기권한(안전한 해를 찾지 못한, {@code no_safe_match}) 시도의 진단 기록(BE-035 일부).
@@ -50,12 +51,12 @@ public class GenerationRejection extends BaseTimeEntity {
 	private String reasonCode;
 
 	@Lob
-	@Column(name = "message")
+	@Column(name = "message", length = Length.LONG32)
 	private String message;
 
 	/** AI 응답 원문(JSON). 근접 후보·매칭 점수 등 진단 데이터가 여기 들어있다. */
 	@Lob
-	@Column(name = "raw_response")
+	@Column(name = "raw_response", length = Length.LONG32)
 	private String rawResponse;
 
 	@Column(name = "created_by", nullable = false)

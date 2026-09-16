@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 후보의 실험 상태 변경 이력 한 건(불변). 상태 변화 자체는 {@code formula} 도메인의
@@ -51,7 +52,7 @@ public class ExperimentStatusLog extends BaseTimeEntity {
 	private Long candidateVersionId;
 
 	@Lob
-	@Column(name = "reason")
+	@Column(name = "reason", length = Length.LONG32)
 	private String reason;
 
 	@Column(name = "changed_by", nullable = false)

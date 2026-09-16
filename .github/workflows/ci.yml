@@ -9,6 +9,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # FlywaySchemaValidationTest(BE-083)용: 마이그레이션 SQL이 엔티티와 맞는지 실제 MySQL로 검증한다.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+          MYSQL_DATABASE: perfumery_schema_check
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-only-password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    env:
+      SCHEMA_CHECK_DB_URL: jdbc:mysql://127.0.0.1:3306/perfumery_schema_check?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SCHEMA_CHECK_DB_USERNAME: root
+      SCHEMA_CHECK_DB_PASSWORD: ci-only-password
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4

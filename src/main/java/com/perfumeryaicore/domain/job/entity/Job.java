@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 외부 AI 서비스 호출을 감싸는 비동기 작업. 트리거 API는 즉시 이 작업의 식별자를 반환하고,
@@ -76,7 +77,7 @@ public class Job extends BaseTimeEntity {
 	 * 구현체가 정한다(꼭 JSON일 필요는 없음). 도메인이 enqueue 시점에 채운다.
 	 */
 	@Lob
-	@Column(name = "input_payload")
+	@Column(name = "input_payload", length = Length.LONG32)
 	private String inputPayload;
 
 	/** 작업 성공 시 생성된 도메인 리소스 식별자(후보 ID, 요청 ID 등). */

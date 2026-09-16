@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 
 /**
  * 영향 후보 재검토 후속 결정(조향식 유지/수정/폐기). 후보에 종속되며, 특정 공급 변경과 연결될 수 있다.
@@ -42,7 +43,7 @@ public class SupplyReviewDecision extends BaseTimeEntity {
 	private SupplyReviewDecisionType decision;
 
 	@Lob
-	@Column(nullable = false)
+	@Column(nullable = false, length = Length.LONG32)
 	private String rationale;
 
 	@Column(name = "decided_by", nullable = false)
