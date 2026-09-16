@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -47,9 +48,10 @@ public class IngredientMasterService {
 		}
 		IngredientMaster saved = repository.save(IngredientMaster.register(
 				dto.externalId(), dto.casNumber(), dto.name(), joinSynonyms(dto.synonyms()),
-				dto.supplierName(), dto.safetyNotes(), dto.regulatoryNotes(), memberId));
+				dto.supplierName(), dto.safetyNotes(), dto.regulatoryNotes(), memberId,
+				dto.pyramid(), writeProfile(dto.profile()), dto.pricePerKg(), dto.priceCurrency(), dto.riskTier()));
 		log.info("[INGREDIENT] master registered externalId={} by={}", dto.externalId(), memberId);
-		return IngredientMasterResponse.from(saved);
+		return toResponse(saved);
 	}
 
 	/**
@@ -80,7 +82,8 @@ public class IngredientMasterService {
 		List<IngredientMaster> saved = repository.saveAll(valid.stream()
 				.map(dto -> IngredientMaster.register(dto.externalId(), dto.casNumber(), dto.name(),
 						joinSynonyms(dto.synonyms()), dto.supplierName(), dto.safetyNotes(), dto.regulatoryNotes(),
-						memberId))
+						memberId, dto.pyramid(), writeProfile(dto.profile()), dto.pricePerKg(),
+						dto.priceCurrency(), dto.riskTier()))
 				.toList());
 		List<IngredientImportFailure> savedFailures = importFailureRepository.saveAll(failures);
 
@@ -88,7 +91,7 @@ public class IngredientMasterService {
 				items.size(), saved.size(), savedFailures.size(), memberId);
 		return new BulkImportResultResponse(
 				items.size(), saved.size(), savedFailures.size(),
-				saved.stream().map(IngredientMasterResponse::from).toList(),
+				saved.stream().map(this::toResponse).toList(),
 				savedFailures.stream().map(ImportFailureResponse::from).toList());
 	}
 
@@ -128,13 +131,14 @@ public class IngredientMasterService {
 	public IngredientMasterResponse update(String externalId, Long memberId, UpdateIngredientMasterRequest dto) {
 		IngredientMaster entity = getOrThrow(externalId);
 		entity.update(dto.casNumber(), dto.name(), joinSynonyms(dto.synonyms()), dto.supplierName(),
-				dto.safetyNotes(), dto.regulatoryNotes());
+				dto.safetyNotes(), dto.regulatoryNotes(), dto.pyramid(), writeProfile(dto.profile()),
+				dto.pricePerKg(), dto.priceCurrency(), dto.riskTier());
 		log.info("[INGREDIENT] master updated externalId={} by={}", externalId, memberId);
-		return IngredientMasterResponse.from(entity);
+		return toResponse(entity);
 	}
 
 	public IngredientMasterResponse get(String externalId) {
-		return IngredientMasterResponse.from(getOrThrow(externalId));
+		return toResponse(getOrThrow(externalId));
 	}
 
 	/**
@@ -145,7 +149,11 @@ public class IngredientMasterService {
 		var page = (query == null || query.isBlank())
 				? repository.findAll(pageable)
 				: repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase(query, query, pageable);
-		return PageResponse.of(page.map(IngredientMasterResponse::from));
+		return PageResponse.of(page.map(this::toResponse));
+	}
+
+	private IngredientMasterResponse toResponse(IngredientMaster entity) {
+		return IngredientMasterResponse.from(entity, jsonMapper);
 	}
 
 	private IngredientMaster getOrThrow(String externalId) {
@@ -158,5 +166,9 @@ public class IngredientMasterService {
 			return null;
 		}
 		return synonyms.isEmpty() ? "" : String.join(",", synonyms);
+	}
+
+	private String writeProfile(JsonNode profile) {
+		return profile == null ? null : jsonMapper.writeValueAsString(profile);
 	}
 }
