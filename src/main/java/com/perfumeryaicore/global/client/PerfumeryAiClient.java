@@ -4,6 +4,8 @@ import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AiHealthResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceRequest;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.ChangeImpactRequest;
+import com.perfumeryaicore.global.client.dto.ChangeImpactResponse;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefResponse;
 import com.perfumeryaicore.global.client.dto.CompareCandidatesRequest;
@@ -246,6 +248,30 @@ public class PerfumeryAiClient {
 						.retrieve().bodyToMono(String.class).block(blockTimeout()));
 		long latency = System.currentTimeMillis() - startedAt.get();
 		return new PerfumeryAiResult<>(body, parse(body, AssessEvidenceResponse.class), latency);
+	}
+
+	/**
+	 * 원료·공급 근거 버전이 바뀌었을 때 기존 배합이 여전히 유효한지 재평가한다
+	 * ({@code previous_evidence_version} 대비). {@code assess-evidence}와 달리 진단 모드 우회가
+	 * 없다 - 등록된 근거가 없으면 항상 422로 거부된다(V80 연동자료, 2026-09-15 확인). 성공(200)
+	 * 응답의 전체 스키마는 AI팀 확인 대기 중({@link ChangeImpactResponse} 참고).
+	 */
+	public PerfumeryAiResult<ChangeImpactResponse> changeImpact(
+			ChangeImpactRequest request, String traceId, Runnable onSlotAcquired) {
+		AtomicLong startedAt = new AtomicLong();
+		Runnable markStart = () -> {
+			startedAt.set(System.currentTimeMillis());
+			if (onSlotAcquired != null) {
+				onSlotAcquired.run();
+			}
+		};
+		String body = serializedCall("formulas-change-impact", traceId, markStart,
+				() -> webClient.post().uri("/v2/formulas/change-impact")
+						.contentType(MediaType.APPLICATION_JSON)
+						.bodyValue(request)
+						.retrieve().bodyToMono(String.class).block(blockTimeout()));
+		long latency = System.currentTimeMillis() - startedAt.get();
+		return new PerfumeryAiResult<>(body, parse(body, ChangeImpactResponse.class), latency);
 	}
 
 	/**

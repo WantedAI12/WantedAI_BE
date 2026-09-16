@@ -2,6 +2,7 @@ package com.perfumeryaicore.domain.safety.controller;
 
 import com.perfumeryaicore.domain.safety.dto.request.ApprovalGateCreateRequest;
 import com.perfumeryaicore.domain.safety.dto.request.AssessEvidenceApiRequest;
+import com.perfumeryaicore.domain.safety.dto.request.ChangeImpactApiRequest;
 import com.perfumeryaicore.domain.safety.dto.response.ApprovalGateResponse;
 import com.perfumeryaicore.domain.safety.dto.response.SafetyEvaluationResponse;
 import com.perfumeryaicore.domain.safety.service.ApprovalGateService;
@@ -9,6 +10,7 @@ import com.perfumeryaicore.domain.safety.service.RegulatoryEvidenceService;
 import com.perfumeryaicore.domain.safety.service.SafetyEvaluationService;
 import com.perfumeryaicore.global.client.dto.AiCapabilitiesResponse;
 import com.perfumeryaicore.global.client.dto.AssessEvidenceResponse;
+import com.perfumeryaicore.global.client.dto.ChangeImpactResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceCoverageResponse;
 import com.perfumeryaicore.global.client.dto.EvidenceStatusResponse;
 import com.perfumeryaicore.global.response.ApiResponse;
@@ -90,6 +92,15 @@ public class SafetyController {
 			@PathVariable Long candidateId,
 			@Valid @RequestBody AssessEvidenceApiRequest request) {
 		return ApiResponse.success(regulatoryEvidenceService.assess(candidateId, principal.id(), request));
+	}
+
+	@Operation(summary = "근거 버전 변경 영향 재평가 (v2) — 진단 모드 우회 없음, 등록된 근거 필수")
+	@PostMapping("/candidates/{candidateId}/change-impact")
+	public ApiResponse<ChangeImpactResponse> changeImpact(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId,
+			@Valid @RequestBody ChangeImpactApiRequest request) {
+		return ApiResponse.success(regulatoryEvidenceService.changeImpact(candidateId, principal.id(), request));
 	}
 
 	@Operation(summary = "조향 AI 지원 제품군·연산별 등록/가동 여부·모델 버전 (v2)")
