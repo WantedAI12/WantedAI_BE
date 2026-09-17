@@ -15,9 +15,13 @@ import com.perfumeryaicore.domain.prediction.dto.response.PredictionResponse;
 import com.perfumeryaicore.domain.prediction.dto.response.PredictionResponse.HumanValidation;
 import com.perfumeryaicore.domain.safety.dto.response.SafetyEvaluationResponse;
 import com.perfumeryaicore.global.common.CandidateStatus;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 
 class EvidenceReportPdfRendererTest {
@@ -67,6 +71,29 @@ class EvidenceReportPdfRendererTest {
 		assertThat(pdf).isNotEmpty();
 		assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).startsWith("%PDF-");
 		assertThat(pdf.length).isGreaterThan(2000); // 임베드된 서브셋 폰트 + 본문
+	}
+
+	/**
+	 * BE-109: 실제로 열어봐야만 드러나는 폰트 서브셋 손상을 잡기 위해, 렌더링한 PDF를 PDFBox
+	 * 자체 텍스트 추출기로 다시 읽어 원문 한글·영문·숫자가 그대로 나오는지 검증한다. 이전에는
+	 * PDF 헤더/크기만 확인해서, 실제 서비스에서 보고서 본문 글자가 무작위로 빠지거나 한글이
+	 * 통째로 사라지는 손상(운영에서 보고, 2026-09-17)을 이 테스트가 잡아내지 못했다.
+	 */
+	@Test
+	void the_rendered_text_round_trips_without_dropped_or_garbled_characters() throws Exception {
+		byte[] pdf = renderer.render(bundle());
+
+		String extracted;
+		try (PDDocument doc = Loader.loadPDF(pdf)) {
+			extracted = new PDFTextStripper().getText(doc);
+		}
+
+		assertThat(extracted).contains("증거 보고서");
+		assertThat(extracted).contains("후보 개요");
+		assertThat(extracted).contains("Dihydromyrcenol");
+		assertThat(extracted).contains("23.5");
+		assertThat(extracted).contains("3.5");
+		assertThat(extracted).contains("안전·가격·의미 조건을 충족한 R&D 후보입니다.");
 	}
 
 	@Test
