@@ -182,6 +182,37 @@ class ProjectServiceTest {
 		assertThat(res.assigneeMemberId()).isEqualTo(TARGET_ID);
 	}
 
+	/**
+	 * 게스트가 만든 1인 프로젝트의 생성자(PERFUMER)도 팀원을 초대할 수 있어야 한다 - 안 그러면
+	 * 초대해서 벗어날 방법도 없이 혼자 갇힌다(update()와 같은 이유, 운영 리포트 후속 확인).
+	 */
+	@Test
+	void add_member_is_allowed_for_a_solo_non_admin_creator() {
+		actorHasRole(ProjectRole.PERFUMER);
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(1L);
+		when(memberRepository.findByEmail("teammate@example.com"))
+				.thenReturn(Optional.of(member(TARGET_ID, "teammate@example.com")));
+		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		var response = service.addMember(PROJECT_ID, ACTOR_ID,
+				new AddProjectMemberRequest("teammate@example.com", ProjectRole.FRAGRANCE_RND));
+
+		assertThat(response.role()).isEqualTo(ProjectRole.FRAGRANCE_RND);
+	}
+
+	/** 혼자뿐이라도 ORG_ADMIN 역할 부여는 여전히 실제 ORG_ADMIN만 할 수 있다. */
+	@Test
+	void add_member_as_org_admin_is_still_forbidden_for_a_solo_non_admin_creator() {
+		actorHasRole(ProjectRole.PERFUMER);
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(1L);
+
+		assertThatThrownBy(() -> service.addMember(PROJECT_ID, ACTOR_ID,
+				new AddProjectMemberRequest("new@example.com", ProjectRole.ORG_ADMIN)))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(memberRepository, never()).findByEmail(any());
+	}
+
 	@Test
 	void add_member_rejects_an_unknown_email() {
 		actorHasRole(ProjectRole.PROJECT_MANAGER);
