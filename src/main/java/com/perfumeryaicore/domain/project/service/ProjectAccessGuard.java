@@ -66,6 +66,29 @@ public class ProjectAccessGuard {
 		throw new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN);
 	}
 
+	/**
+	 * 프로젝트 기본 정보 수정 같은 관리 작업 전용 검사({@code requireRole}과 같지만 한 가지 예외를
+	 * 더 허용한다): 프로젝트에 멤버가 자신 하나뿐이면 역할과 무관하게 통과시킨다.
+	 *
+	 * <p>게스트가 만든 1인 프로젝트의 생성자는 {@code ORG_ADMIN}이 아니라 {@code PERFUMER}로
+	 * 등록된다({@link ProjectService#initialRoleFor} - 실무 쓰기 작업을 막지 않기 위함). 그 결과
+	 * {@code requireRole(ORG_ADMIN, PROJECT_MANAGER)}만 쓰면 자기 프로젝트 이름 하나 못 바꾸는
+	 * 상태가 된다 - 팀원이 없어 다른 사람을 해칠 여지가 없는 1인 프로젝트에서는 그 유일한
+	 * 멤버가 사실상 관리자다. 멤버가 둘 이상이 되면 이 예외는 더 이상 적용되지 않는다.
+	 */
+	public ProjectRole requireManageRole(Long projectId, Long memberId, ProjectRole... manageRoles) {
+		ProjectRole role = requireMember(projectId, memberId);
+		for (ProjectRole candidate : manageRoles) {
+			if (role == candidate) {
+				return role;
+			}
+		}
+		if (projectMemberRepository.countByProjectId(projectId) == 1) {
+			return role;
+		}
+		throw new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
 	public boolean isMember(Long projectId, Long memberId) {
 		return projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId);
 	}

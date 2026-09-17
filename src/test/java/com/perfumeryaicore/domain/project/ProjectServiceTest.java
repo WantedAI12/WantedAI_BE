@@ -107,10 +107,28 @@ class ProjectServiceTest {
 	@Test
 	void update_is_forbidden_for_a_plain_member_role() {
 		actorHasRole(ProjectRole.PERFUMER);
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(2L);
 
 		assertThatThrownBy(() -> service.update(PROJECT_ID, ACTOR_ID, new UpdateProjectRequest("새 이름", null, null, null, null)))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	/**
+	 * 게스트가 만든 1인 프로젝트의 생성자는 PERFUMER로 등록되므로(ORG_ADMIN이 아님), 그 유일한
+	 * 멤버는 자기 프로젝트 기본 정보를 수정할 수 있어야 한다(운영 보고, 2026-09-18).
+	 */
+	@Test
+	void update_is_allowed_for_a_solo_non_admin_creator() {
+		actorHasRole(ProjectRole.PERFUMER);
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(1L);
+		when(projectRepository.findById(PROJECT_ID))
+				.thenReturn(Optional.of(Project.create("기존 이름", "설명", null, null)));
+
+		ProjectResponse res = service.update(PROJECT_ID, ACTOR_ID,
+				new UpdateProjectRequest("새 이름", null, null, null, null));
+
+		assertThat(res.name()).isEqualTo("새 이름");
 	}
 
 	/** BE-084: PATCH로 프로젝트 이름을 공백으로 바꿀 수 없다. */

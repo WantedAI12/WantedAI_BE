@@ -99,4 +99,39 @@ class ProjectAccessGuardTest {
 		assertThat(guard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND))
 				.isEqualTo(ProjectRole.PERFUMER);
 	}
+
+	/**
+	 * 게스트가 만든 1인 프로젝트의 생성자는 PERFUMER로 등록되므로(ORG_ADMIN이 아님), 관리 작업도
+	 * 이 유일한 멤버에게는 통과시켜야 한다 - 그렇지 않으면 자기 프로젝트 이름 하나 못 바꾼다.
+	 */
+	@Test
+	void require_manage_role_allows_a_solo_non_admin_member_with_no_teammates_yet() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.PERFUMER)));
+		when(repository.countByProjectId(10L)).thenReturn(1L);
+
+		assertThat(guard.requireManageRole(10L, 1L, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+				.isEqualTo(ProjectRole.PERFUMER);
+	}
+
+	/** 팀원이 초대돼 둘 이상이 되면 실제 관리 역할이 있는 사람만 프로젝트 정보를 바꿀 수 있다. */
+	@Test
+	void require_manage_role_denies_a_non_admin_once_other_members_exist() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.PERFUMER)));
+		when(repository.countByProjectId(10L)).thenReturn(2L);
+
+		assertThatThrownBy(() -> guard.requireManageRole(10L, 1L, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+	}
+
+	@Test
+	void require_manage_role_passes_through_for_an_actual_manage_role_regardless_of_team_size() {
+		when(repository.findByProjectIdAndMemberId(10L, 1L))
+				.thenReturn(Optional.of(ProjectMember.create(10L, 1L, ProjectRole.PROJECT_MANAGER)));
+
+		assertThat(guard.requireManageRole(10L, 1L, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+				.isEqualTo(ProjectRole.PROJECT_MANAGER);
+	}
 }

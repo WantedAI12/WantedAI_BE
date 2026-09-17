@@ -102,7 +102,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectResponse update(Long projectId, Long memberId, UpdateProjectRequest dto) {
-		ProjectRole myRole = accessGuard.requireRole(projectId, memberId,
+		ProjectRole myRole = accessGuard.requireManageRole(projectId, memberId,
 				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		Project project = findProject(projectId);
 		project.updateInfo(dto.name(), dto.description());
