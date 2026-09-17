@@ -2,6 +2,7 @@ package com.perfumeryaicore.domain.ingredient.dto.request;
 
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import tools.jackson.databind.JsonNode;
 
 /** 부분 수정. {@code null}인 필드는 바뀌지 않는다. externalId는 여기서 바꿀 수 없다(신원 고정). */
 public record UpdateIngredientMasterRequest(
@@ -12,7 +13,7 @@ public record UpdateIngredientMasterRequest(
 		@Size(max = 200)
 		String name,
 
-		List<@Size(max = 100) String> synonyms,
+		List<@Size(max = 150) String> synonyms,
 
 		@Size(max = 200)
 		String supplierName,
@@ -21,6 +22,18 @@ public record UpdateIngredientMasterRequest(
 		String safetyNotes,
 
 		@Size(max = 4000)
-		String regulatoryNotes
+		String regulatoryNotes,
+
+		@Size(max = 20)
+		String pyramid,
+
+		JsonNode profile,
+
+		Double pricePerKg,
+
+		@Size(max = 50)
+		String priceCurrency,
+
+		Integer riskTier
 ) {
 }

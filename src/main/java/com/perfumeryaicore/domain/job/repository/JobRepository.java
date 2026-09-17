@@ -11,6 +11,8 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
 	List<Job> findByStatusOrderByCreatedAtAsc(JobStatus status);
 
+	List<Job> findByProjectId(Long projectId);
+
 	/** BE-046: 중복 제출 방지 조회. */
 	Optional<Job> findByCreatedByAndJobTypeAndIdempotencyKey(Long createdBy, JobType jobType, String idempotencyKey);
 }

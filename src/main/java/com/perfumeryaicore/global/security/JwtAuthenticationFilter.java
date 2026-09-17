@@ -50,6 +50,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		if (StringUtils.hasText(header) && header.startsWith(BEARER_PREFIX)) {
 			return header.substring(BEARER_PREFIX.length());
 		}
+		// SSE 스트림(/jobs/{id}/stream)만 예외: 브라우저 EventSource는 커스텀 헤더를 못 보내므로
+		// 쿼리 파라미터로도 받는다(AI 개발팀 SSE 제안, 2026-09-17). 토큰이 서버 접근 로그에
+		// 남을 수 있어 다른 엔드포인트로는 넓히지 않는다.
+		if (request.getRequestURI().endsWith("/stream")) {
+			String queryToken = request.getParameter("access_token");
+			if (StringUtils.hasText(queryToken)) {
+				return queryToken;
+			}
+		}
 		return null;
 	}
 }

@@ -9,6 +9,7 @@ import com.perfumeryaicore.domain.formula.dto.response.CandidateResponse;
 import com.perfumeryaicore.domain.formula.dto.response.CandidateVersionResponse;
 import com.perfumeryaicore.domain.formula.dto.response.GenerationRejectionResponse;
 import com.perfumeryaicore.domain.formula.entity.CandidateMemoType;
+import com.perfumeryaicore.domain.formula.service.CandidateDeletionService;
 import com.perfumeryaicore.domain.formula.service.CandidateDiagnosticReviseService;
 import com.perfumeryaicore.domain.formula.service.CandidateGenerationService;
 import com.perfumeryaicore.domain.formula.service.CandidateMemoService;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +46,7 @@ public class CandidateController {
 	private final CandidateMemoService candidateMemoService;
 	private final GenerationRejectionService generationRejectionService;
 	private final CandidateDiagnosticReviseService candidateDiagnosticReviseService;
+	private final CandidateDeletionService candidateDeletionService;
 
 	@Operation(summary = "후보 조향식 생성 요청 (확정된 요청만 가능, 비동기, Idempotency-Key로 중복 제출 방지)")
 	@PostMapping("/requests/{requestId}/candidates")
@@ -77,6 +80,16 @@ public class CandidateController {
 			@AuthenticationPrincipal MemberPrincipal principal,
 			@PathVariable Long candidateId) {
 		return ApiResponse.success(candidateService.get(candidateId, principal.id()));
+	}
+
+	@Operation(summary = "후보 삭제 (하위 버전·근거·실험이력 등 전부 포함, 되돌릴 수 없음, "
+			+ "승인된 후보는 삭제 불가, PERFUMER/FRAGRANCE_RND/PRODUCT_BRAND)")
+	@DeleteMapping("/candidates/{candidateId}")
+	public ResponseEntity<Void> delete(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long candidateId) {
+		candidateDeletionService.delete(candidateId, principal.id());
+		return ResponseEntity.noContent().build();
 	}
 
 	@Operation(summary = "후보 복제 (현재 버전을 새 후보로 복사, AI 호출 없음, PERFUMER/FRAGRANCE_RND/PRODUCT_BRAND)")

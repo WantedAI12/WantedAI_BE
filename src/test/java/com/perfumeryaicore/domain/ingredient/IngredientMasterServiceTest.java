@@ -21,6 +21,8 @@ import com.perfumeryaicore.global.exception.ErrorCode;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** BE-062: 처방에 쓰인 적 없는 원료도 등록·검색 가능한 마스터 - 관측 미러와 별개로 동작해야 한다. */
 class IngredientMasterServiceTest {
@@ -30,12 +32,14 @@ class IngredientMasterServiceTest {
 			mock(IngredientImportFailureRepository.class);
 	private final IngredientMasterService service =
 			new IngredientMasterService(repository, importFailureRepository);
+	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
 	@Test
 	void register_rejects_a_duplicate_external_id() {
 		when(repository.existsByExternalId("bergamot_oil")).thenReturn(true);
 		RegisterIngredientMasterRequest dto = new RegisterIngredientMasterRequest(
-				"bergamot_oil", "8007-75-8", "Bergamot Oil", List.of("Citrus bergamia"), "Firmenich", null, null);
+				"bergamot_oil", "8007-75-8", "Bergamot Oil", List.of("Citrus bergamia"), "Firmenich", null, null,
+				null, null, null, null, null);
 
 		assertThatThrownBy(() -> service.register(1L, dto))
 				.isInstanceOf(BusinessException.class)
@@ -48,7 +52,8 @@ class IngredientMasterServiceTest {
 		when(repository.save(any(IngredientMaster.class))).thenAnswer(inv -> inv.getArgument(0));
 		RegisterIngredientMasterRequest dto = new RegisterIngredientMasterRequest(
 				"bergamot_oil", "8007-75-8", "Bergamot Oil",
-				List.of("Citrus bergamia", "Bergamot"), "Firmenich", "IFRA 41차 제한", null);
+				List.of("Citrus bergamia", "Bergamot"), "Firmenich", "IFRA 41차 제한", null,
+				null, null, null, null, null);
 
 		IngredientMasterResponse response = service.register(1L, dto);
 
@@ -58,9 +63,27 @@ class IngredientMasterServiceTest {
 	}
 
 	@Test
+	void register_stores_the_odor_profile_and_price_and_returns_them_back_out() {
+		when(repository.existsByExternalId("dihydromyrcenol")).thenReturn(false);
+		when(repository.save(any(IngredientMaster.class))).thenAnswer(inv -> inv.getArgument(0));
+		JsonNode profile = jsonMapper.readTree("{\"citrus\":0.7,\"fresh\":1.0}");
+		RegisterIngredientMasterRequest dto = new RegisterIngredientMasterRequest(
+				"dihydromyrcenol", "18479-58-8", "Dihydromyrcenol", null, null, null, null,
+				"top", profile, 18.0, "USD_estimate", 1);
+
+		IngredientMasterResponse response = service.register(1L, dto);
+
+		assertThat(response.pyramid()).isEqualTo("top");
+		assertThat(response.profile().get("citrus").asDouble()).isEqualTo(0.7);
+		assertThat(response.pricePerKg()).isEqualTo(18.0);
+		assertThat(response.priceCurrency()).isEqualTo("USD_estimate");
+		assertThat(response.riskTier()).isEqualTo(1);
+	}
+
+	@Test
 	void a_never_used_ingredient_can_still_be_found_by_search() {
 		IngredientMaster entity = IngredientMaster.register(
-				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L);
+				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L, null, null, null, null, null);
 		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
 		when(repository.findByNameContainingIgnoreCaseOrCasNumberContainingIgnoreCase("Iso", "Iso", pageable))
 				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(entity)));
@@ -75,7 +98,7 @@ class IngredientMasterServiceTest {
 	@Test
 	void searching_without_a_query_paginates_the_full_registered_master_list() {
 		IngredientMaster entity = IngredientMaster.register(
-				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L);
+				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L, null, null, null, null, null);
 		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
 		when(repository.findAll(pageable))
 				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(entity), pageable, 30000));
@@ -99,10 +122,10 @@ class IngredientMasterServiceTest {
 	@Test
 	void update_changes_fields_but_never_the_external_id() {
 		IngredientMaster entity = IngredientMaster.register(
-				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L);
+				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L, null, null, null, null, null);
 		when(repository.findByExternalId("iso_e_super")).thenReturn(Optional.of(entity));
 		UpdateIngredientMasterRequest dto = new UpdateIngredientMasterRequest(
-				"54464-57-2", "Iso E Super (updated)", null, "Givaudan", null, null);
+				"54464-57-2", "Iso E Super (updated)", null, "Givaudan", null, null, null, null, null, null, null);
 
 		IngredientMasterResponse response = service.update("iso_e_super", 1L, dto);
 
@@ -112,15 +135,35 @@ class IngredientMasterServiceTest {
 		assertThat(response.supplierName()).isEqualTo("Givaudan");
 	}
 
+	/** BE-107: pyramid/profile/가격/risk_tier도 다른 필드와 같은 null-불변 규칙을 따른다. */
+	@Test
+	void update_can_also_set_the_odor_profile_fields() {
+		IngredientMaster entity = IngredientMaster.register(
+				"iso_e_super", null, "Iso E Super", null, null, null, null, 1L, null, null, null, null, null);
+		when(repository.findByExternalId("iso_e_super")).thenReturn(Optional.of(entity));
+		JsonNode profile = jsonMapper.readTree("{\"woody\":0.9}");
+		UpdateIngredientMasterRequest dto = new UpdateIngredientMasterRequest(
+				null, null, null, null, null, null, "base", profile, 85.0, "USD_estimate", 1);
+
+		IngredientMasterResponse response = service.update("iso_e_super", 1L, dto);
+
+		assertThat(response.pyramid()).isEqualTo("base");
+		assertThat(response.profile().get("woody").asDouble()).isEqualTo(0.9);
+		assertThat(response.pricePerKg()).isEqualTo(85.0);
+		assertThat(response.riskTier()).isEqualTo(1);
+	}
+
 	private RegisterIngredientMasterRequest importDto(String externalId) {
-		return new RegisterIngredientMasterRequest(externalId, null, "Name " + externalId, null, null, null, null);
+		return new RegisterIngredientMasterRequest(externalId, null, "Name " + externalId, null, null, null, null,
+				null, null, null, null, null);
 	}
 
 	/** BE-063~066: DB에 이미 있는 행과 배치 내부 중복 행만 실패로 남고, 나머지는 그대로 등록된다. */
 	@Test
 	void bulkImport_registers_valid_rows_and_queues_duplicates_as_failures() {
 		when(repository.findByExternalIdIn(any())).thenReturn(
-				List.of(IngredientMaster.register("already_registered", null, "Existing", null, null, null, null, 1L)));
+				List.of(IngredientMaster.register("already_registered", null, "Existing", null, null, null, null, 1L,
+						null, null, null, null, null)));
 		when(repository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 		when(importFailureRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 

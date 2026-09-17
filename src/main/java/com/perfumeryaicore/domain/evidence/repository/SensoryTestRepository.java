@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SensoryTestRepository extends JpaRepository<SensoryTest, Long> {
 
 	List<SensoryTest> findByCandidateIdOrderByCreatedAtDesc(Long candidateId);
+
+	List<SensoryTest> findByCandidateIdIn(List<Long> candidateIds);
 }

@@ -12,6 +12,7 @@ import com.perfumeryaicore.domain.job.entity.Job;
 import com.perfumeryaicore.domain.job.entity.JobStatus;
 import com.perfumeryaicore.domain.job.entity.JobType;
 import com.perfumeryaicore.domain.job.repository.JobRepository;
+import com.perfumeryaicore.domain.job.service.JobEventBroadcaster;
 import com.perfumeryaicore.domain.job.service.JobRetryHandler;
 import com.perfumeryaicore.domain.job.service.JobService;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
@@ -26,10 +27,11 @@ class JobServiceTest {
 
 	private final JobRepository jobRepository = mock(JobRepository.class);
 	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
+	private final JobEventBroadcaster eventBroadcaster = mock(JobEventBroadcaster.class);
 
 	private JobService service(JobRetryHandler... handlers) {
 		when(accessGuard.isMember(10L, 1L)).thenReturn(true); // job(...) 아래서 projectId=10L, owner=1L 고정
-		JobService service = new JobService(jobRepository, accessGuard);
+		JobService service = new JobService(jobRepository, accessGuard, eventBroadcaster);
 		service.setRetryHandlers(List.of(handlers));
 		return service;
 	}
@@ -110,6 +112,30 @@ class JobServiceTest {
 		when(jobRepository.findById(1L)).thenReturn(Optional.of(job(1L, JobStatus.PENDING, false)));
 
 		assertThatThrownBy(() -> service().get(1L, 2L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.JOB_ACCESS_DENIED);
+	}
+
+	/** AI 개발팀 제안(2026-09-17): SSE 구독도 일반 조회와 같은 접근 제어(프로젝트 멤버십)를 탄다. */
+	@Test
+	void subscribe_delegates_to_the_broadcaster_with_the_current_state() {
+		Job existing = job(1L, JobStatus.RUNNING, false);
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(existing));
+		org.springframework.web.servlet.mvc.method.annotation.SseEmitter stub =
+				new org.springframework.web.servlet.mvc.method.annotation.SseEmitter();
+		when(eventBroadcaster.subscribe(any())).thenReturn(stub);
+
+		var emitter = service().subscribe(1L, 1L);
+
+		assertThat(emitter).isSameAs(stub);
+		verify(eventBroadcaster).subscribe(com.perfumeryaicore.domain.job.dto.response.JobResponse.from(existing));
+	}
+
+	@Test
+	void subscribe_by_non_owner_is_denied() {
+		when(jobRepository.findById(1L)).thenReturn(Optional.of(job(1L, JobStatus.PENDING, false)));
+
+		assertThatThrownBy(() -> service().subscribe(1L, 2L))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.JOB_ACCESS_DENIED);
 	}

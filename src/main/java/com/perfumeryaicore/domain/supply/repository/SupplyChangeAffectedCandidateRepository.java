@@ -11,6 +11,8 @@ public interface SupplyChangeAffectedCandidateRepository
 
 	List<SupplyChangeAffectedCandidate> findBySupplyChangeIdOrderByCreatedAtAsc(Long supplyChangeId);
 
+	List<SupplyChangeAffectedCandidate> findByCandidateIdIn(List<Long> candidateIds);
+
 	Optional<SupplyChangeAffectedCandidate> findBySupplyChangeIdAndCandidateId(Long supplyChangeId, Long candidateId);
 
 	List<SupplyChangeAffectedCandidate> findBySupplyChangeIdInAndReviewStatusOrderByCreatedAtDesc(

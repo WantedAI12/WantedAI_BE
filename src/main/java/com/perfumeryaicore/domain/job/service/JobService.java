@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 비동기 작업 생성·조회·재시도·취소.
@@ -33,11 +34,22 @@ public class JobService {
 
 	private final JobRepository jobRepository;
 	private final ProjectAccessGuard accessGuard;
+	private final JobEventBroadcaster eventBroadcaster;
 	private final Map<JobType, JobRetryHandler> retryHandlers = new EnumMap<>(JobType.class);
 
-	public JobService(JobRepository jobRepository, ProjectAccessGuard accessGuard) {
+	public JobService(JobRepository jobRepository, ProjectAccessGuard accessGuard,
+			JobEventBroadcaster eventBroadcaster) {
 		this.jobRepository = jobRepository;
 		this.accessGuard = accessGuard;
+		this.eventBroadcaster = eventBroadcaster;
+	}
+
+	/**
+	 * 작업 진행 상황 실시간 구독(AI 개발팀 제안, 2026-09-17) - 접근 제어는 일반 조회와 같다.
+	 * 구독 시점의 현재 상태를 즉시 한 번 받고, 이후 상태 변화마다 갱신을 받는다.
+	 */
+	public SseEmitter subscribe(Long jobId, Long memberId) {
+		return eventBroadcaster.subscribe(get(jobId, memberId));
 	}
 
 	/**
@@ -113,7 +125,9 @@ public class JobService {
 		if (job == null || job.getStatus() != JobStatus.PENDING) {
 			return -1;
 		}
-		return job.markRunning();
+		int attempt = job.markRunning();
+		publishAfterCommit(job);
+		return attempt;
 	}
 
 	/** {@code attempt}가 해당 작업의 현재 시도가 아니면(이전 시도의 지연 응답) 무시한다. */
@@ -144,6 +158,7 @@ public class JobService {
 			return;
 		}
 		job.markSucceeded(attempt, resultRefId);
+		publishAfterCommit(job);
 	}
 
 	/** {@code attempt}가 해당 작업의 현재 시도가 아니거나(지연 응답) 이미 RUNNING이 아니면(취소됨 등) 무시한다. */
@@ -161,6 +176,7 @@ public class JobService {
 			return;
 		}
 		job.markFailed(attempt, reason, retryable);
+		publishAfterCommit(job);
 	}
 
 	/**
@@ -248,7 +264,14 @@ public class JobService {
 		Job job = getAccessibleJob(jobId, memberId);
 		job.cancel();
 		log.info("[JOB] id={} type={} CANCELLED by={}", jobId, job.getJobType(), memberId);
+		publishAfterCommit(job);
 		return JobResponse.from(job);
+	}
+
+	/** 트랜잭션이 실제로 커밋된 뒤에만 구독자에게 알린다 - 롤백될 수도 있는 상태를 미리 보내지 않는다. */
+	private void publishAfterCommit(Job job) {
+		JobResponse response = JobResponse.from(job);
+		dispatchAfterCommit(() -> eventBroadcaster.publish(response));
 	}
 
 	/** 작업이 속한 프로젝트의 멤버만 접근 허용. */

@@ -44,6 +44,12 @@ public class AuthController {
 		return ApiResponse.success(authService.login(request));
 	}
 
+	@Operation(summary = "게스트 모드 시작 — 가입 없이 즉시 임시 계정으로 로그인, 일정 시간 후 자동 만료")
+	@PostMapping("/guest")
+	public ResponseEntity<ApiResponse<TokenResponse>> guestLogin() {
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(authService.guestLogin()));
+	}
+
 	@Operation(summary = "Refresh Token으로 Access Token 재발급")
 	@PostMapping("/refresh")
 	public ApiResponse<TokenResponse> refresh(@Valid @RequestBody TokenRefreshRequest request) {

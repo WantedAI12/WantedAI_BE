@@ -10,6 +10,7 @@ import com.perfumeryaicore.domain.project.dto.response.ProjectImageUploadRespons
 import com.perfumeryaicore.domain.project.dto.response.ProjectMemberAuditLogResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectMemberResponse;
 import com.perfumeryaicore.domain.project.dto.response.ProjectResponse;
+import com.perfumeryaicore.domain.project.service.ProjectDeletionService;
 import com.perfumeryaicore.domain.project.service.ProjectImageService;
 import com.perfumeryaicore.domain.project.service.ProjectService;
 import com.perfumeryaicore.domain.request.dto.request.CreateProjectWithFirstRequestRequest;
@@ -48,6 +49,7 @@ public class ProjectController {
 	private final ProjectService projectService;
 	private final ProjectImageService projectImageService;
 	private final ProjectOnboardingService projectOnboardingService;
+	private final ProjectDeletionService projectDeletionService;
 
 	@Operation(summary = "프로젝트(테넌트) 생성 — 생성자는 ORG_ADMIN으로 자동 등록")
 	@PostMapping("/projects")
@@ -89,6 +91,15 @@ public class ProjectController {
 			@PathVariable Long projectId,
 			@Valid @RequestBody UpdateProjectRequest request) {
 		return ApiResponse.success(projectService.update(projectId, principal.id(), request));
+	}
+
+	@Operation(summary = "프로젝트 삭제 (ORG_ADMIN / PROJECT_MANAGER) — 요청·후보·근거 등 모든 하위 데이터 포함, 되돌릴 수 없음")
+	@DeleteMapping("/projects/{projectId}")
+	public ResponseEntity<Void> delete(
+			@AuthenticationPrincipal MemberPrincipal principal,
+			@PathVariable Long projectId) {
+		projectDeletionService.delete(projectId, principal.id());
+		return ResponseEntity.noContent().build();
 	}
 
 	@Operation(summary = "멤버 초대 및 역할 배정 (ORG_ADMIN / PROJECT_MANAGER)")

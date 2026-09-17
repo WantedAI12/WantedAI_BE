@@ -10,4 +10,6 @@ public interface ApprovalGateRepository extends JpaRepository<ApprovalGate, Long
 	List<ApprovalGate> findByCandidateIdOrderByCreatedAtDesc(Long candidateId);
 
 	Optional<ApprovalGate> findFirstByCandidateIdOrderByCreatedAtDesc(Long candidateId);
+
+	List<ApprovalGate> findByCandidateIdIn(List<Long> candidateIds);
 }

@@ -56,7 +56,7 @@ class SensoryTestServiceTest {
 	@BeforeEach
 	void actorIsSensoryScientist() {
 		when(candidateService.getProjectId(CANDIDATE_ID, 1L)).thenReturn(PROJECT_ID);
-		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(ProjectRole.SENSORY_SCIENTIST);
+		when(accessGuard.requireWriteRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(ProjectRole.SENSORY_SCIENTIST);
 		when(accessGuard.hasRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(true);
 		// BE-053: plan()이 실험 확정 상태와 현재 버전을 확인한다.
 		when(candidateService.get(CANDIDATE_ID, 1L)).thenReturn(
@@ -115,7 +115,7 @@ class SensoryTestServiceTest {
 	/** BE-006: SENSORY_SCIENTIST가 아니면 계획을 등록할 수 없다. */
 	@Test
 	void plan_is_forbidden_for_a_non_sensory_scientist() {
-		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST))
+		when(accessGuard.requireWriteRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.plan(CANDIDATE_ID, 1L, new SensoryTestPlanRequest(
@@ -237,7 +237,7 @@ class SensoryTestServiceTest {
 	void recording_a_result_is_forbidden_for_a_non_sensory_scientist() {
 		SensoryTest test = test(10L, CANDIDATE_ID);
 		when(testRepository.findById(10L)).thenReturn(Optional.of(test));
-		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST))
+		when(accessGuard.requireWriteRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.recordResult(10L, 1L,
@@ -310,7 +310,7 @@ class SensoryTestServiceTest {
 	void publish_requires_a_completed_test() {
 		SensoryTest test = test(10L, CANDIDATE_ID);
 		when(testRepository.findById(10L)).thenReturn(Optional.of(test));
-		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireWriteRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.SENSORY_SCIENTIST);
 
 		assertThatThrownBy(() -> service.publish(10L, 1L))
@@ -324,7 +324,7 @@ class SensoryTestServiceTest {
 		test.markCompleted();
 		when(testRepository.findById(10L)).thenReturn(Optional.of(test));
 		when(resultRepository.findBySensoryTestIdOrderByCreatedAtDesc(10L)).thenReturn(List.of());
-		when(accessGuard.requireRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireWriteRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.SENSORY_SCIENTIST);
 
 		SensoryTestResponse response = service.publish(10L, 1L);

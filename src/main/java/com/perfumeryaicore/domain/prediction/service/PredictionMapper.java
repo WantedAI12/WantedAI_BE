@@ -45,6 +45,7 @@ public class PredictionMapper {
 		Simulation simulation = new Simulation(
 				text(root, "simulation_status"),
 				number(root, "simulation_confidence"),
+				descriptiveTextIfNotNumber(root, "simulation_confidence"),
 				number(root, "simulation_p05"),
 				number(root, "simulation_p95"),
 				intVal(root, "simulation_draws"));
@@ -112,14 +113,29 @@ public class PredictionMapper {
 		return value.isMissingNode() || value.isNull() ? null : value.asBoolean();
 	}
 
+	/**
+	 * AI팀 확인(2026-09-17): 배포 시점이 어긋난 과거 응답은 이 필드가 숫자가 아닌 설명 문자열
+	 * (예: {@code "heuristic_only"})로 저장돼 있을 수 있다 - {@code isNumber()} 없이 바로
+	 * {@code asDouble()}을 부르면 조회 시 오류가 난다. 숫자가 아니면 null이고, 그 문자열
+	 * 자체는 {@link #descriptiveTextIfNotNumber}가 별도로 보존한다(0으로 대체하지 않음).
+	 */
 	private static Double number(JsonNode node, String field) {
 		JsonNode value = node.path(field);
-		return value.isMissingNode() || value.isNull() ? null : value.asDouble();
+		return value.isMissingNode() || value.isNull() || !value.isNumber() ? null : value.asDouble();
+	}
+
+	/** {@code field}가 숫자가 아닌 문자열일 때만 그 설명값을 그대로 반환한다(숫자면 null). */
+	private static String descriptiveTextIfNotNumber(JsonNode node, String field) {
+		JsonNode value = node.path(field);
+		if (value.isMissingNode() || value.isNull() || value.isNumber()) {
+			return null;
+		}
+		return value.asString();
 	}
 
 	private static Integer intVal(JsonNode node, String field) {
 		JsonNode value = node.path(field);
-		return value.isMissingNode() || value.isNull() ? null : value.asInt();
+		return value.isMissingNode() || value.isNull() || !value.isIntegralNumber() ? null : value.asInt();
 	}
 
 	private static JsonNode node(JsonNode node, String field) {

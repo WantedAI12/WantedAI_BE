@@ -145,7 +145,7 @@ public class CandidateService {
 	@Transactional
 	public CandidateResponse duplicate(Long candidateId, Long memberId, String reason) {
 		Candidate source = getAccessibleCandidate(candidateId, memberId);
-		accessGuard.requireRole(source.getProjectId(), memberId, DUPLICATE_ROLES);
+		accessGuard.requireWriteRole(source.getProjectId(), memberId, DUPLICATE_ROLES);
 		if (source.getCurrentVersionId() == null) {
 			throw new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND);
 		}
@@ -204,7 +204,7 @@ public class CandidateService {
 	@Transactional
 	public CandidateResponse restoreVersion(Long candidateId, Long memberId, Long targetVersionId) {
 		Candidate candidate = getAccessibleCandidate(candidateId, memberId);
-		accessGuard.requireRole(candidate.getProjectId(), memberId, DUPLICATE_ROLES);
+		accessGuard.requireWriteRole(candidate.getProjectId(), memberId, DUPLICATE_ROLES);
 
 		CandidateVersion target = candidateVersionRepository.findById(targetVersionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_VERSION_NOT_FOUND));

@@ -10,5 +10,7 @@ public interface CandidateMemoRepository extends JpaRepository<CandidateMemo, Lo
 
 	List<CandidateMemo> findByCandidateId(Long candidateId);
 
+	List<CandidateMemo> findByCandidateIdIn(List<Long> candidateIds);
+
 	Optional<CandidateMemo> findByCandidateIdAndMemoType(Long candidateId, CandidateMemoType memoType);
 }
