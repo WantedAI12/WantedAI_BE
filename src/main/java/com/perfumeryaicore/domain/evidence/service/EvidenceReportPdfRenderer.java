@@ -17,7 +17,6 @@ import java.nio.file.StandardCopyOption;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.pdfbox.io.RandomAccessReadBufferedFile;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -32,9 +31,12 @@ import tools.jackson.databind.JsonNode;
  * 입력을 재해석하지 않고 그대로 줄글로 옮긴다 — 표·그래프 없이 문서화가 목적인 1차 버전이다.
  *
  * <p>PDFBox 표준 14 폰트는 한글 글리프가 없어 별도로 한글 지원 폰트(나눔고딕, SIL OFL 라이선스)를
- * {@code classpath:/fonts/NanumGothic-Regular.ttf}에 번들해 임베드한다. 문서에 실제 쓰인 글리프만
- * 남기도록 서브셋 임베딩을 쓴다({@link PDType0Font#load}의 embedSubset=true + {@link PDFont#subset()}).
- * (Noto Sans KR은 가변 폰트만 배포되어 PDFBox 서브셋터의 cmap 처리와 맞지 않아 정적 폰트인 나눔고딕을 쓴다.)
+ * {@code classpath:/fonts/NanumGothic-Regular.ttf}에 번들해 임베드한다. 로드는 반드시
+ * {@link PDType0Font#load(PDDocument, java.io.File)} 단순 오버로드로 한다 - embedSubset 인자를
+ * 받는 {@code RandomAccessRead} 오버로드는 PDFBox 3.0.3에서 이 폰트의 너비 테이블을 잘못 만들어
+ * 텍스트가 한 글자씩 다른 줄에 찍히고 글자가 무작위로 빠지는 손상이 있었다(운영 보고,
+ * 2026-09-17 - 순수 ASCII로도 재현되어 한글 자체 문제는 아니었다). {@link #loadFont} 참고.
+ * (Noto Sans KR은 가변 폰트만 배포되어 PDFBox와 궁합이 더 안 좋아 정적 폰트인 나눔고딕을 쓴다.)
  */
 @Component
 public class EvidenceReportPdfRenderer {
@@ -67,8 +69,6 @@ public class EvidenceReportPdfRenderer {
 
 			cursor.finish();
 
-			// embedSubset=true로 로드한 폰트는 document.save()가 알아서 서브셋 임베딩한다
-			// (PDFBox 3.x — 별도 font.subset() 호출은 오히려 이중 처리로 깨진다).
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			document.save(out);
 			return out.toByteArray();
@@ -202,8 +202,12 @@ public class EvidenceReportPdfRenderer {
 	private static volatile Path fontFile;
 
 	PDFont loadFont(PDDocument document) throws IOException {
-		// embedSubset=true, closeData=true → PDFBox가 save 시점에 폰트를 다시 읽고 끝나면 닫는다.
-		return PDType0Font.load(document, new RandomAccessReadBufferedFile(resolveFontFile()), true, true);
+		// PDType0Font.load(document, File) 단순 오버로드를 쓴다 - RandomAccessRead 오버로드
+		// (embedSubset 인자를 받는 쪽)는 PDFBox 3.0.3에서 이 폰트의 너비 테이블을 잘못 만들어,
+		// 텍스트가 한 글자씩 다른 줄에 찍히고 특정 글자가 무작위로 빠지는 손상이 있었다(운영 보고,
+		// 2026-09-17 - 순수 ASCII로도 재현됨, 한글 특정 문제가 아니었다). File 오버로드는 같은
+		// 폰트로 이 손상 없이 정상 서브셋 임베딩된다(회귀 테스트로 텍스트 추출까지 검증).
+		return PDType0Font.load(document, resolveFontFile().toFile());
 	}
 
 	private static Path resolveFontFile() throws IOException {
