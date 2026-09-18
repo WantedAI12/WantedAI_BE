@@ -132,7 +132,8 @@ public class CandidateGenerationService {
 	private Long generateLotion(Long jobId, Long requestId, Long memberId, FragranceRequest request,
 			JobExecutor.JobContext context) {
 		LotionEstimateRequest modalRequest = LotionEstimateRequest.of(
-				request.getRawText(), request.getRiskTier(), request.getMaxIngredientPricePerKg());
+				request.getRawText(), request.getRiskTier(), request.getMaxIngredientPricePerKg(),
+				request.getUsageConcentrationPercent());
 
 		PerfumeryAiResult<LotionDesignResponse> result =
 				perfumeryAiClient.designLotion(modalRequest, "job-" + jobId, context::aiCallStarted);
