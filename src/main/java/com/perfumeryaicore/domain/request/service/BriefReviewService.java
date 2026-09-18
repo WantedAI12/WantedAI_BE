@@ -174,10 +174,6 @@ public class BriefReviewService {
 	 */
 	private static final double DEFAULT_MAX_FORMULA_COST_PER_KG_USD = 180.0;
 
-	private Double toUsdPerKg(Double krwPerKg) {
-		return krwPerKg == null ? null : krwPerKg / modalAiProperties.krwPerUsd();
-	}
-
 	/** BE 저장 요청을 v2 {@code request.formula} 스키마로 변환한다 - v1 {@code FormulaRequestMapper}와 같은 필드 매핑. */
 	private JsonNode buildRequestNode(FragranceRequest request) {
 		ObjectNode formula = jsonMapper.createObjectNode();
@@ -185,8 +181,9 @@ public class BriefReviewService {
 		putIfPresent(formula, "max_risk_tier", request.getRiskTier());
 		putIfPresent(formula, "product_concentration_percent", request.getUsageConcentrationPercent());
 		// 사용자 입력·화면은 원화(KRW/kg)지만 Modal 스키마는 USD/kg를 기대한다(AI 확인) - 보내기
-		// 전에 변환한다.
-		putIfPresent(formula, "max_ingredient_price_per_kg", toUsdPerKg(request.getMaxIngredientPricePerKg()));
+		// 전에 변환한다. 실제 생성 경로(FormulaRequestMapper)와 같은 변환 메서드를 쓴다.
+		putIfPresent(formula, "max_ingredient_price_per_kg",
+				modalAiProperties.krwPerKgToUsd(request.getMaxIngredientPricePerKg()));
 		formula.put("max_formula_cost_per_kg", DEFAULT_MAX_FORMULA_COST_PER_KG_USD);
 		putIfPresent(formula, "max_ingredients", request.getMaxIngredientCount());
 		TargetRegion region = request.getTargetRegion();
