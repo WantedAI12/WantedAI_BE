@@ -194,6 +194,9 @@ public class BriefReviewService {
 		if (category != null) {
 			formula.put("product_category", category.getModalValue());
 		}
+		// AI팀 확인(2026-09-19): v1 FormulaRequestMapper와 같은 필드 매핑을 유지한다 - 실제
+		// 생성과 이 리뷰 경로가 같은 향 계열 정보를 봐야 진단 결과가 실제 생성과 어긋나지 않는다.
+		formula.set("accords", jsonMapper.valueToTree(request.accords()));
 
 		ObjectNode requestNode = jsonMapper.createObjectNode();
 		requestNode.set("formula", formula);

@@ -54,4 +54,27 @@ class FormulaRequestMapperTest {
 		assertThat(mapper.toModalRequest(request).maxIngredientPricePerKg()).isNull();
 		assertThat(mapper.toUsdIngredientPricePerKg(request)).isNull();
 	}
+
+	/**
+	 * AI팀 확인(2026-09-19): brief 원문은 그대로 두고 accords를 별도 필드로 전달해야 한다 -
+	 * 문장에 끼워 넣거나 다시 쓰지 않는다.
+	 */
+	@Test
+	void toModalRequest_passes_the_stored_accords_through_without_touching_the_brief() {
+		FragranceRequest request = FragranceRequest.create(10L, 1L, "바닐라 냄새가 나는 향");
+		request.applyUpdate(null, ProductCategory.EAU_DE_PARFUM, TargetRegion.EU, 1,
+				null, null, 15.0, 12, 180_000.0, List.of("시트러스", "우디"));
+
+		FormulaGenerationRequest modalRequest = mapper.toModalRequest(request);
+
+		assertThat(modalRequest.brief()).isEqualTo("바닐라 냄새가 나는 향");
+		assertThat(modalRequest.accords()).containsExactly("시트러스", "우디");
+	}
+
+	@Test
+	void toModalRequest_sends_an_empty_accords_list_when_none_were_selected() {
+		FragranceRequest request = FragranceRequest.create(10L, 1L, "시트러스 우디");
+
+		assertThat(mapper.toModalRequest(request).accords()).isEmpty();
+	}
 }
