@@ -41,7 +41,9 @@ public class LotionDetailMapper {
 				node(root, "perception_model"),
 				node(root, "recipe"),
 				node(root, "closest_candidate"),
-				text(root.path("perfumer_notes"), "text"));
+				text(root.path("perfumer_notes"), "text"),
+				node(root, "candidate_explanation"),
+				node(root, "safety_explanation"));
 	}
 
 	private JsonNode parse(String rawResponse) {

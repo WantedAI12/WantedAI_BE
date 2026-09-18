@@ -114,4 +114,33 @@ class CandidateVersionMapperTest {
 
 		assertThat(response.perfumerNotes()).isNull();
 	}
+
+	/**
+	 * AI팀 확인(2026-09-18) - 후보 설명 응답 확장. 값을 재해석하지 않고 원문 그대로 노출해야
+	 * null/unknown 구분, 통화 미표기 등 세부 값이 그대로 보존된다.
+	 */
+	@Test
+	void candidate_and_safety_explanation_are_reparsed_from_stored_raw_response() {
+		String rawWithExplanations = """
+				{
+				  "status": "prototype_ready",
+				  "message": "안전 조건 충족",
+				  "candidate_explanation": {"ingredients": [{"price_currency": null}]},
+				  "safety_explanation": {"internal_review_passed": true, "regulatory_status": "unknown"}
+				}""";
+
+		CandidateVersionResponse response = mapper.toResponse(versionWithRaw(rawWithExplanations), List.of());
+
+		assertThat(response.candidateExplanation().path("ingredients").get(0).path("price_currency").isNull())
+				.isTrue();
+		assertThat(response.safetyExplanation().path("regulatory_status").asString()).isEqualTo("unknown");
+	}
+
+	@Test
+	void missing_candidate_and_safety_explanation_yield_null_without_failing() {
+		CandidateVersionResponse response = mapper.toResponse(versionWithRaw(RAW_RESPONSE), List.of());
+
+		assertThat(response.candidateExplanation()).isNull();
+		assertThat(response.safetyExplanation()).isNull();
+	}
 }

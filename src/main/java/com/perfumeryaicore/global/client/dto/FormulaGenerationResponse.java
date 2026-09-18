@@ -77,7 +77,24 @@ public record FormulaGenerationResponse(
 		 * 이미 {@code recipe}로 따로 갖고 있어 중복 보관하지 않는다.
 		 */
 		@JsonProperty("perfumer_notes")
-		PerfumerNotes perfumerNotes
+		PerfumerNotes perfumerNotes,
+
+		/**
+		 * AI팀 확인(2026-09-18): 원료별 농축액/완제품 함량 기록 이유, 가격·가용성, 배합 구성,
+		 * 목표 일치도, 시간별 향 강도, 제조 계획·한계를 담은 후보 설명. 구조가 깊고 아직 안정적으로
+		 * 확정되지 않아 원문 그대로 보존한다 - 값을 잘라내거나 반올림하지 않는다({@code safety}와
+		 * 같은 패턴).
+		 */
+		@JsonProperty("candidate_explanation")
+		JsonNode candidateExplanation,
+
+		/**
+		 * AI팀 확인(2026-09-18): 내부 검사·증빙 완전성·출시 검증 분리, 규제 탭, 누락 자료·미확인
+		 * 원료, 후속 검토 항목을 담은 안전성 설명. 내부 검사 통과가 전체 규제 승인을 의미하지
+		 * 않는다 - 원문 그대로 보존한다.
+		 */
+		@JsonProperty("safety_explanation")
+		JsonNode safetyExplanation
 ) {
 
 	/** Modal이 안전한 해를 찾지 못한 경우의 상태값. 이때 {@code recipe}는 빈 배열이다. */
