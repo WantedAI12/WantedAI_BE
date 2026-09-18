@@ -37,7 +37,8 @@ public record UpdateFragranceRequestRequest(
 		@Min(6) @Max(20)
 		Integer maxIngredientCount,
 
-		@DecimalMin(value = "0", inclusive = false) @DecimalMax("300")
+		/** 원료 1kg당 최대 단가, 원화(KRW/kg) 기준 - 화면 표시 단위와 동일하다. 상한 없음. */
+		@DecimalMin(value = "0", inclusive = false)
 		Double maxIngredientPricePerKg,
 
 		List<String> accords

@@ -108,4 +108,29 @@ class LotionDetailMapperTest {
 
 		assertThat(response.perfumerNotes()).isNull();
 	}
+
+	/**
+	 * AI팀 확인(2026-09-18) - 후보 설명 응답 확장. 값을 재해석하지 않고 원문 그대로 노출해야
+	 * null/unknown 구분, 통화 미표기 등 세부 값이 그대로 보존된다.
+	 */
+	@Test
+	void candidate_and_safety_explanation_are_passed_through_raw_when_present() {
+		String raw = RAW_RESPONSE.replace("\"score\": null,",
+				"\"score\": null, \"candidate_explanation\": {\"ingredients\": [{\"price_currency\": null}]}, "
+						+ "\"safety_explanation\": {\"internal_review_passed\": true, \"regulatory_status\": \"unknown\"},");
+
+		LotionDetailResponse response = mapper.toResponse(view(raw));
+
+		assertThat(response.candidateExplanation().path("ingredients").get(0).path("price_currency").isNull())
+				.isTrue();
+		assertThat(response.safetyExplanation().path("regulatory_status").asString()).isEqualTo("unknown");
+	}
+
+	@Test
+	void missing_candidate_and_safety_explanation_yield_null_without_failing() {
+		LotionDetailResponse response = mapper.toResponse(view(RAW_RESPONSE));
+
+		assertThat(response.candidateExplanation()).isNull();
+		assertThat(response.safetyExplanation()).isNull();
+	}
 }

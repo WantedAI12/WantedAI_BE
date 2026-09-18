@@ -81,6 +81,7 @@ public class FragranceRequest extends BaseTimeEntity {
 	@Column(name = "max_ingredient_count")
 	private Integer maxIngredientCount;
 
+	/** 원화(KRW/kg) 기준 - Modal에 보낼 때만 USD/kg로 환산한다({@link com.perfumeryaicore.domain.request.service.BriefReviewService}). */
 	@Column(name = "max_ingredient_price_per_kg")
 	private Double maxIngredientPricePerKg;
 

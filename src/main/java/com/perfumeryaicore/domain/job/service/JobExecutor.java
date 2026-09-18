@@ -100,7 +100,10 @@ public class JobExecutor {
 			log.warn("[JOB] id={} type={} attempt={} FAILED code={} retryable={}",
 					jobId, jobType, attempt, e.getErrorCode().name(), retryable);
 		} catch (RuntimeException e) {
-			jobService.markFailed(jobId, attempt, "UNEXPECTED: " + e.getClass().getSimpleName(), false);
+			// 클래스 이름만으로는 서버 스택 로그 없이 원인을 알 수 없다(AI 개발팀 확인, 2026-09-18) -
+			// 메시지가 없는 예외(NPE 등)도 있어 폴백 문구를 둔다.
+			String detail = e.getMessage() != null ? e.getMessage() : "no message";
+			jobService.markFailed(jobId, attempt, "UNEXPECTED: " + e.getClass().getSimpleName() + ": " + detail, false);
 			log.error("[JOB] id={} type={} attempt={} FAILED unexpectedly", jobId, jobType, attempt, e);
 		}
 	}

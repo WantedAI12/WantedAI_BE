@@ -7,6 +7,7 @@ import com.perfumeryaicore.domain.request.dto.request.EvaluateDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.ReassessDiagnosticRequest;
 import com.perfumeryaicore.domain.request.dto.request.ReviseCandidateApiRequest;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
+import com.perfumeryaicore.global.client.ModalAiProperties;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
@@ -51,6 +52,7 @@ public class BriefReviewService {
 
 	private final FragranceRequestService requestService;
 	private final PerfumeryAiClient perfumeryAiClient;
+	private final ModalAiProperties modalAiProperties;
 	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
 	public PrepareBriefResponse prepare(Long requestId, Long memberId, BriefReviewRequest dto) {
@@ -178,7 +180,10 @@ public class BriefReviewService {
 		formula.put("brief", request.getRawText());
 		putIfPresent(formula, "max_risk_tier", request.getRiskTier());
 		putIfPresent(formula, "product_concentration_percent", request.getUsageConcentrationPercent());
-		putIfPresent(formula, "max_ingredient_price_per_kg", request.getMaxIngredientPricePerKg());
+		// 사용자 입력·화면은 원화(KRW/kg)지만 Modal 스키마는 USD/kg를 기대한다(AI 확인) - 보내기
+		// 전에 변환한다. 실제 생성 경로(FormulaRequestMapper)와 같은 변환 메서드를 쓴다.
+		putIfPresent(formula, "max_ingredient_price_per_kg",
+				modalAiProperties.krwPerKgToUsd(request.getMaxIngredientPricePerKg()));
 		formula.put("max_formula_cost_per_kg", DEFAULT_MAX_FORMULA_COST_PER_KG_USD);
 		putIfPresent(formula, "max_ingredients", request.getMaxIngredientCount());
 		TargetRegion region = request.getTargetRegion();

@@ -66,6 +66,9 @@ ai:
     response-timeout: ${AI_MODAL_RESPONSE_TIMEOUT:305s}
     requests-per-minute: ${AI_MODAL_RPM:30}
     max-retries: ${AI_MODAL_MAX_RETRIES:1}
+    # 화면·사용자 입력(원화)을 Modal 가격 필드(USD/kg)로 변환할 때 쓰는 환율 근사치. 실시간
+    # 연동이 아니므로 환율이 크게 바뀌면 환경변수로 갱신할 것.
+    krw-per-usd: ${AI_MODAL_KRW_PER_USD:1350}
 
 springdoc:
   swagger-ui:

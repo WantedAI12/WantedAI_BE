@@ -154,7 +154,7 @@ class CandidateGenerationServiceTest {
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
-				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null);
+				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 		// BE-048: 생산 코드가 이제 aiCallStarted를 직접 호출하지 않고, 클라이언트의 '게이트 통과 직후'
 		// 콜백으로 넘긴다. 실제 클라이언트가 게이트 통과 시점에 그 콜백을 실행하는 것처럼 흉내낸다.
@@ -191,7 +191,7 @@ class CandidateGenerationServiceTest {
 
 		FormulaGenerationResponse rejected = new FormulaGenerationResponse(
 				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", null, null, null, null,
-				List.of(), null, null, null, null, null, null, null, null, null, null);
+				List.of(), null, null, null, null, null, null, null, null, null, null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 800L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 
@@ -239,7 +239,7 @@ class CandidateGenerationServiceTest {
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
-				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null);
+				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 
@@ -312,6 +312,36 @@ class CandidateGenerationServiceTest {
 		ArgumentCaptor<LotionEstimateRequest> requestCaptor = ArgumentCaptor.forClass(LotionEstimateRequest.class);
 		verify(perfumeryAiClient).designLotion(requestCaptor.capture(), eq("job-77"), any());
 		assertThat(requestCaptor.getValue().fragranceConcentrationPercent()).isEqualTo(1.5);
+	}
+
+	/**
+	 * AI 개발팀 확인(2026-09-19): 원화→USD 환산이 v2 리뷰 경로에만 있고 실제 로션 생성 경로엔
+	 * 빠져 있었다 - {@code formulaRequestMapper}가 환산한 값을 그대로 쓰는지 검증한다.
+	 */
+	@Test
+	void the_ingredient_price_sent_to_the_lotion_client_is_the_mapper_converted_usd_value() {
+		when(fragranceRequestService.getConfirmedRequest(5L, 1L)).thenReturn(lotionRequest());
+		when(formulaRequestMapper.toUsdIngredientPricePerKg(any(FragranceRequest.class))).thenReturn(4.5);
+		Job job = jobWithId(77L);
+		when(jobService.enqueue(10L, JobType.CANDIDATE_GENERATION, 1L, "5", null)).thenReturn(job);
+		when(jobService.get(77L, 1L)).thenReturn(new JobResponse(77L, JobType.CANDIDATE_GENERATION, JobStatus.PENDING, false, null, null, null, null));
+
+		LotionDesignResponse parsed = new LotionDesignResponse("ready", true, false, null,
+				List.of(tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode()
+						.put("ingredient_id", "citral").put("name", "Citral")),
+				List.of());
+		PerfumeryAiResult<LotionDesignResponse> aiResult = new PerfumeryAiResult<>("{\"status\":\"ready\"}", parsed, 500L);
+		when(perfumeryAiClient.designLotion(any(LotionEstimateRequest.class), eq("job-77"), any())).thenReturn(aiResult);
+		when(candidatePersistenceService.persistLotion(5L, 10L, 1L, 77L, aiResult)).thenReturn(900L);
+
+		service.enqueue(5L, 1L);
+		ArgumentCaptor<JobWork> jobCaptor = ArgumentCaptor.forClass(JobWork.class);
+		verify(jobExecutor).execute(eq(77L), eq(JobType.CANDIDATE_GENERATION), jobCaptor.capture());
+		jobCaptor.getValue().run(context(false, () -> { }));
+
+		ArgumentCaptor<LotionEstimateRequest> requestCaptor = ArgumentCaptor.forClass(LotionEstimateRequest.class);
+		verify(perfumeryAiClient).designLotion(requestCaptor.capture(), eq("job-77"), any());
+		assertThat(requestCaptor.getValue().maxIngredientPricePerKg()).isEqualTo(4.5);
 	}
 
 	/** recipe가 비어있고 closest_candidate만 있으면(기권·탐색 미완료) 후보로 저장하면 안 된다. */

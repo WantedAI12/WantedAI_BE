@@ -25,6 +25,21 @@ public record CandidateVersionResponse(
 		 */
 		String perfumerNotes,
 
+		/**
+		 * AI팀 확인(2026-09-18): 원료별 농축액/완제품 함량 기록 이유, 가격·가용성, 배합 구성,
+		 * 목표 일치도, 시간별 향 강도, 제조 계획·한계를 담은 후보 설명. 구조가 깊고 아직 안정적으로
+		 * 확정되지 않아(약 33KB) 원문 그대로 노출한다 - 값을 잘라내거나 반올림하지 않는다. 아직 이
+		 * 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		JsonNode candidateExplanation,
+
+		/**
+		 * AI팀 확인(2026-09-18): 내부 검사·증빙 완전성·출시 검증 분리, 규제 탭, 누락 자료·미확인
+		 * 원료, 후속 검토 항목을 담은 안전성 설명. 내부 검사 통과가 전체 규제 승인을 의미하지
+		 * 않는다 - 원문 그대로 노출한다. 아직 이 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		JsonNode safetyExplanation,
+
 		Long createdBy,
 		LocalDateTime createdAt,
 

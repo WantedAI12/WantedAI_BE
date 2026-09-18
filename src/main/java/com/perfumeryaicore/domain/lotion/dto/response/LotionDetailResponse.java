@@ -41,11 +41,25 @@ public record LotionDetailResponse(
 		 * AI팀 확인(2026-09-18): 원료 배합비 목록만 보여주던 화면 대신 쓸 수 있는 조향사용
 		 * 서술형 설명({@code perfumer_notes.text}). 아직 이 필드가 없던 과거 응답이면 {@code null}.
 		 */
-		String perfumerNotes
+		String perfumerNotes,
+
+		/**
+		 * AI팀 확인(2026-09-18): 원료별 농축액/완제품 함량 기록 이유, 가격·가용성, 배합 구성,
+		 * 목표 일치도, 시간별 향 강도, 제조 계획·한계를 담은 후보 설명. 원문 그대로 노출한다 -
+		 * 값을 잘라내거나 반올림하지 않는다. 아직 이 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		JsonNode candidateExplanation,
+
+		/**
+		 * AI팀 확인(2026-09-18): 내부 검사·증빙 완전성·출시 검증 분리, 규제 탭, 누락 자료·미확인
+		 * 원료, 후속 검토 항목을 담은 안전성 설명. 내부 검사 통과가 전체 규제 승인을 의미하지
+		 * 않는다 - 원문 그대로 노출한다. 아직 이 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		JsonNode safetyExplanation
 ) {
 
 	public static LotionDetailResponse empty(Long candidateId, Long versionId) {
 		return new LotionDetailResponse(candidateId, versionId,
-				null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+				null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 	}
 }
