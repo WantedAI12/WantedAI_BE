@@ -15,6 +15,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param responseTimeout   전체 응답 대기 시간 (AI 개발팀 확인: 추론 큐 대기 110초 + Modal 함수 타임아웃 300초, 기본 305초)
  * @param requestsPerMinute 분당 호출 상한 (컨테이너 기준 30회)
  * @param maxRetries        일시 오류(429/5xx/타임아웃) 시 최대 재시도 횟수
+ * @param krwPerUsd         원/달러 환율 근사치. 화면·사용자 입력은 원화 기준이지만 Modal
+ *                          {@code FormulaRequest} 스키마의 가격 필드(예: {@code max_ingredient_price_per_kg})는
+ *                          USD/kg 기준이라, 보내기 전 이 값으로 나눠 변환한다(2026-09-18 확인).
+ *                          실시간 환율 연동이 아니므로 주기적으로 갱신이 필요하다.
  */
 @ConfigurationProperties(prefix = "ai.modal")
 public record ModalAiProperties(
@@ -23,7 +27,8 @@ public record ModalAiProperties(
 		Duration connectTimeout,
 		Duration responseTimeout,
 		int requestsPerMinute,
-		int maxRetries
+		int maxRetries,
+		double krwPerUsd
 ) {
 
 	public boolean hasAuthToken() {
