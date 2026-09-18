@@ -102,7 +102,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectResponse update(Long projectId, Long memberId, UpdateProjectRequest dto) {
-		ProjectRole myRole = accessGuard.requireRole(projectId, memberId,
+		ProjectRole myRole = accessGuard.requireManageRole(projectId, memberId,
 				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		Project project = findProject(projectId);
 		project.updateInfo(dto.name(), dto.description());
@@ -135,7 +135,11 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectMemberResponse addMember(Long projectId, Long actorId, AddProjectMemberRequest dto) {
-		ProjectRole actorRole = accessGuard.requireRole(projectId, actorId,
+		// requireManageRole: 게스트가 만든 1인 프로젝트의 생성자(PERFUMER)도 팀원을 초대할 수
+		// 있어야 한다 - 안 그러면 초대해서 벗어날 방법도 없이 혼자 갇힌다(update()와 같은 이유,
+		// 운영 리포트 후속 확인, 2026-09-18). ORG_ADMIN 역할 부여는 아래 requireOrgAdminActor가
+		// 별도로 계속 막는다 - 이 완화는 "초대 자체"만 풀어준다.
+		ProjectRole actorRole = accessGuard.requireManageRole(projectId, actorId,
 				ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		if (dto.role() == ProjectRole.ORG_ADMIN) {
 			requireOrgAdminActor(actorRole, "ORG_ADMIN 역할 부여");
