@@ -35,11 +35,17 @@ public record LotionDetailResponse(
 		JsonNode preparation,
 		JsonNode perceptionModel,
 		JsonNode recipe,
-		JsonNode closestCandidate
+		JsonNode closestCandidate,
+
+		/**
+		 * AI팀 확인(2026-09-18): 원료 배합비 목록만 보여주던 화면 대신 쓸 수 있는 조향사용
+		 * 서술형 설명({@code perfumer_notes.text}). 아직 이 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		String perfumerNotes
 ) {
 
 	public static LotionDetailResponse empty(Long candidateId, Long versionId) {
 		return new LotionDetailResponse(candidateId, versionId,
-				null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+				null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 	}
 }

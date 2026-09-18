@@ -154,7 +154,7 @@ class CandidateGenerationServiceTest {
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
-				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
+				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 		// BE-048: 생산 코드가 이제 aiCallStarted를 직접 호출하지 않고, 클라이언트의 '게이트 통과 직후'
 		// 콜백으로 넘긴다. 실제 클라이언트가 게이트 통과 시점에 그 콜백을 실행하는 것처럼 흉내낸다.
@@ -191,7 +191,7 @@ class CandidateGenerationServiceTest {
 
 		FormulaGenerationResponse rejected = new FormulaGenerationResponse(
 				"no_safe_match", "허용 원료로는 안전 기준을 만족하는 배합이 없습니다.", null, null, null, null,
-				List.of(), null, null, null, null, null, null, null, null, null);
+				List.of(), null, null, null, null, null, null, null, null, null, null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"no_safe_match\"}", rejected, 800L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 
@@ -239,7 +239,7 @@ class CandidateGenerationServiceTest {
 				List.of(new RecipeLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				List.of(0, 15, 60, 240, 480), null, null, null, "claim boundary text",
 				null, "headspace-olfactory-twin-2.2", null,
-				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240));
+				new Deployment("modal", "cpu", false, "wheel-sha", "registry-sha", 29240), null);
 		PerfumeryAiResult aiResult = new PerfumeryAiResult("{\"status\":\"prototype_ready\"}", parsed, 1690L);
 		when(perfumeryAiClient.generateFormula(eq(modalRequest), eq("job-77"), any())).thenReturn(aiResult);
 

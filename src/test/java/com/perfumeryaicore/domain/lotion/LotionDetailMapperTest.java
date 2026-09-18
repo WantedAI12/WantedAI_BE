@@ -86,4 +86,26 @@ class LotionDetailMapperTest {
 
 		assertThat(response.score().asString()).isEqualTo("heuristic_only");
 	}
+
+	/**
+	 * AI팀 확인(2026-09-18) - 실제 Modal 라이브 응답으로 확인한 구조. 원료 배합비 목록만 보여주던
+	 * 화면 대신 이 서술형 설명을 쓸 수 있다.
+	 */
+	@Test
+	void perfumer_notes_text_is_extracted_when_present() {
+		String raw = RAW_RESPONSE.replace("\"score\": null,",
+				"\"score\": null, \"perfumer_notes\": {\"schema_version\": \"perfumer-notes/v1\", "
+						+ "\"text\": \"향의 콘셉트\\n요청하신 것을 출발점으로 구성한 배합입니다.\"},");
+
+		LotionDetailResponse response = mapper.toResponse(view(raw));
+
+		assertThat(response.perfumerNotes()).contains("향의 콘셉트");
+	}
+
+	@Test
+	void missing_perfumer_notes_yields_null_without_failing() {
+		LotionDetailResponse response = mapper.toResponse(view(RAW_RESPONSE));
+
+		assertThat(response.perfumerNotes()).isNull();
+	}
 }
