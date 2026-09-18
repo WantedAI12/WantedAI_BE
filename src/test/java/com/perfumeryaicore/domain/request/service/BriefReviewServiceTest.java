@@ -16,6 +16,7 @@ import com.perfumeryaicore.domain.request.dto.request.ReviseCandidateApiRequest;
 import com.perfumeryaicore.domain.request.entity.FragranceRequest;
 import com.perfumeryaicore.domain.request.entity.Intensity;
 import com.perfumeryaicore.domain.request.entity.Longevity;
+import com.perfumeryaicore.global.client.ModalAiProperties;
 import com.perfumeryaicore.global.client.PerfumeryAiClient;
 import com.perfumeryaicore.global.client.PerfumeryAiResult;
 import com.perfumeryaicore.global.client.dto.ClarifyBriefRequest;
@@ -45,11 +46,15 @@ class BriefReviewServiceTest {
 
 	private static final long REQUEST_ID = 500L;
 	private static final long MEMBER_ID = 1L;
+	private static final double KRW_PER_USD = 1350.0;
 	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	private final FragranceRequestService requestService = mock(FragranceRequestService.class);
 	private final PerfumeryAiClient perfumeryAiClient = mock(PerfumeryAiClient.class);
-	private final BriefReviewService service = new BriefReviewService(requestService, perfumeryAiClient);
+	private final ModalAiProperties modalAiProperties = new ModalAiProperties("http://ai.local", "token",
+			java.time.Duration.ofSeconds(1), java.time.Duration.ofSeconds(2), 30, 1, KRW_PER_USD);
+	private final BriefReviewService service =
+			new BriefReviewService(requestService, perfumeryAiClient, modalAiProperties);
 
 	private FragranceRequest fullyStructuredRequest() {
 		FragranceRequest request = FragranceRequest.create(10L, MEMBER_ID, "피오니와 청사과 향");
@@ -79,7 +84,8 @@ class BriefReviewServiceTest {
 		assertThat(formula.get("brief").asString()).isEqualTo("피오니와 청사과 향");
 		assertThat(formula.get("max_risk_tier").asInt()).isEqualTo(2);
 		assertThat(formula.get("product_concentration_percent").asDouble()).isEqualTo(15.0);
-		assertThat(formula.get("max_ingredient_price_per_kg").asDouble()).isEqualTo(180.0);
+		// 저장값은 원화(KRW/kg)지만 Modal에는 USD/kg로 환산해 보낸다.
+		assertThat(formula.get("max_ingredient_price_per_kg").asDouble()).isEqualTo(180.0 / KRW_PER_USD);
 		assertThat(formula.get("target_region").asString()).isEqualTo("EU");
 		assertThat(formula.get("product_category").asString()).isEqualTo("eau_de_parfum");
 	}

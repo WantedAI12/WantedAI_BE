@@ -45,7 +45,7 @@ class PerfumeryAiClientTest {
 
 	private ModalAiProperties props(String token, int rpm, int retries) {
 		return new ModalAiProperties("http://ai.local", token,
-				Duration.ofSeconds(1), Duration.ofSeconds(2), rpm, retries);
+				Duration.ofSeconds(1), Duration.ofSeconds(2), rpm, retries, 1350.0);
 	}
 
 	private PerfumeryAiClient client(ModalAiProperties props, ExchangeFunction exchange) {
