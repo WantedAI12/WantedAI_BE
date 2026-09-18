@@ -220,7 +220,7 @@ class PerfumeryAiClientTest {
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, okLotion, calls));
 
 		PerfumeryAiResult<LotionDesignResponse> result =
-				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0), "trace-1", null);
+				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0, java.util.List.of()), "trace-1", null);
 
 		assertThat(calls.get()).isEqualTo(1);
 		assertThat(result.parsed().status()).isEqualTo("ready");
@@ -238,7 +238,7 @@ class PerfumeryAiClientTest {
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, rejected, calls));
 
 		PerfumeryAiResult<LotionDesignResponse> result =
-				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0), "trace-1", null);
+				client.designLotion(LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0, java.util.List.of()), "trace-1", null);
 
 		assertThat(result.parsed().isUsableCandidate()).isFalse();
 		assertThat(result.parsed().searchIncomplete()).isTrue();
@@ -250,7 +250,7 @@ class PerfumeryAiClientTest {
 		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, "{}", calls));
 
 		assertThatThrownBy(() -> client.designLotion(
-				LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0), "trace-1", null))
+				LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0, java.util.List.of()), "trace-1", null))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.AI_SCHEMA_VERSION_MISMATCH);
 	}

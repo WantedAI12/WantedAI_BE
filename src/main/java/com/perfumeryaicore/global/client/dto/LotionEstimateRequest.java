@@ -2,6 +2,7 @@ package com.perfumeryaicore.global.client.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 
 /**
  * Modal {@code POST /v1/applications/body-lotion/design} 요청 본문.
@@ -33,11 +34,20 @@ public record LotionEstimateRequest(
 		Double maxIngredientPricePerKg,
 
 		@JsonProperty("fragrance_concentration_percent")
-		Double fragranceConcentrationPercent
+		Double fragranceConcentrationPercent,
+
+		/**
+		 * AI팀 확인(2026-09-19): 선택 향 계열. {@code brief} 원문을 덧붙이거나 덮어쓰지 않고
+		 * 별도 JSON 항목으로 함께 전달된다. 저장된 {@code request.accords()}를 재해석 없이
+		 * 그대로 전달한다.
+		 */
+		@JsonProperty("accords")
+		List<String> accords
 ) {
 
 	public static LotionEstimateRequest of(String brief, Integer maxRiskTier, Double maxIngredientPricePerKg,
-			Double fragranceConcentrationPercent) {
-		return new LotionEstimateRequest(brief, maxRiskTier, maxIngredientPricePerKg, fragranceConcentrationPercent);
+			Double fragranceConcentrationPercent, List<String> accords) {
+		return new LotionEstimateRequest(
+				brief, maxRiskTier, maxIngredientPricePerKg, fragranceConcentrationPercent, accords);
 	}
 }

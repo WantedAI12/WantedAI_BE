@@ -134,7 +134,7 @@ public class CandidateGenerationService {
 		LotionEstimateRequest modalRequest = LotionEstimateRequest.of(
 				request.getRawText(), request.getRiskTier(),
 				formulaRequestMapper.toUsdIngredientPricePerKg(request),
-				request.getUsageConcentrationPercent());
+				request.getUsageConcentrationPercent(), request.accords());
 
 		PerfumeryAiResult<LotionDesignResponse> result =
 				perfumeryAiClient.designLotion(modalRequest, "job-" + jobId, context::aiCallStarted);

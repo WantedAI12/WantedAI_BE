@@ -2,6 +2,7 @@ package com.perfumeryaicore.global.client.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 
 /**
  * Modal {@code POST /v1/formulas} 요청 본문.
@@ -47,7 +48,16 @@ public record FormulaGenerationRequest(
 		String targetRegion,
 
 		@JsonProperty("product_category")
-		String productCategory
+		String productCategory,
+
+		/**
+		 * AI팀 확인(2026-09-19): 선택 향 계열. {@code brief} 원문을 덧붙이거나 덮어쓰지 않고
+		 * 별도 JSON 항목으로 함께 전달된다 - 언어 해석·생성 요청 캐시에도 반영되어 같은 원문이라도
+		 * accords가 다르면 다른 요청으로 취급된다. 문자열 32개까지, 항목당 100자까지 허용.
+		 * 저장된 {@code request.accords()}를 재해석 없이 그대로 전달한다.
+		 */
+		@JsonProperty("accords")
+		List<String> accords
 ) {
 
 	/**
@@ -68,6 +78,7 @@ public record FormulaGenerationRequest(
 				false,
 				false,
 				targetRegion,
-				productCategory);
+				productCategory,
+				List.of());
 	}
 }

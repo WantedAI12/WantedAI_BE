@@ -29,7 +29,8 @@ public class FormulaRequestMapper {
 				false,
 				false,
 				request.getTargetRegion() != null ? request.getTargetRegion().modalValue() : null,
-				request.getProductCategory() != null ? request.getProductCategory().getModalValue() : null);
+				request.getProductCategory() != null ? request.getProductCategory().getModalValue() : null,
+				request.accords());
 	}
 
 	/**
