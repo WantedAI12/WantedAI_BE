@@ -10,7 +10,6 @@ import com.perfumeryaicore.domain.member.repository.MemberRepository;
 import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
-import com.perfumeryaicore.global.security.GuestAuthProperties;
 import com.perfumeryaicore.global.security.JwtProperties;
 import com.perfumeryaicore.global.security.JwtTokenProvider;
 import com.perfumeryaicore.global.security.LoginLockoutProperties;
@@ -45,7 +44,6 @@ public class AuthService {
 	private final TokenHasher tokenHasher;
 	private final JwtProperties jwtProperties;
 	private final LoginLockoutProperties loginLockoutProperties;
-	private final GuestAuthProperties guestAuthProperties;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	@Transactional
@@ -100,14 +98,16 @@ public class AuthService {
 
 		Member member = memberRepository.findById(stored.getMemberId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-		if (member.isGuestExpired(now)) {
+		if (member.isGuest()) {
+			// 게스트는 재발급 자체를 허용하지 않는다 - Access Token이 만료돼 refresh가 필요해지는
+			// 시점(나갔다 들어오는 등)마다 세션이 끝나야 한다(2026-09-18 요구사항). 계정·데이터는
+			// 지우지 않고 그대로 두되(영구 보존), 다음 이용은 반드시 새 guestLogin()으로 시작한다.
+			stored.revoke(now);
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
 		}
 
 		stored.revoke(now);
-		// 게스트는 회전해도 원래 만료 시각을 넘길 수 없다 - 캡을 매번 다시 걸지 않으면
-		// refresh를 반복 호출해 세션을 무기한 연장할 수 있다.
-		return issueTokens(member.getId(), member.getEmail(), member.isGuest() ? member.getGuestExpiresAt() : null);
+		return issueTokens(member.getId(), member.getEmail());
 	}
 
 	@Transactional
@@ -119,41 +119,32 @@ public class AuthService {
 
 	/**
 	 * 게스트 모드(2026-09-18 재조정): 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만들고 바로
-	 * 로그인 상태로 토큰을 발급한다. 이 계정이 만드는 프로젝트에 자동으로 PERFUMER가 되는 것
-	 * 외에는 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다(권한 체계가 프로젝트 단위라서
-	 * 그대로 작동한다, {@code ProjectService.initialRoleFor} 참고).
+	 * 로그인 상태로 토큰을 발급한다. 이 계정이 만드는 프로젝트에 자동으로 PERFUMER가 되는 것 외에는
+	 * 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다(권한 체계가 프로젝트 단위라서 그대로
+	 * 작동한다, {@code ProjectService.initialRoleFor} 참고).
 	 *
-	 * <p>세션은 {@code sessionExpiryHours} 뒤에 리셋된다(Refresh Token 재발급이 막혀 다시
-	 * 게스트로 시작해야 함) - 나갔다 다시 들어오면 처음 상태로 보여야 한다는 요구사항 때문이다.
-	 * 계정·데이터(프로젝트·후보 등)는 세션 만료와 무관하게 절대 지우지 않는다 - AI 학습·분석용으로
-	 * 계속 수집한다(2026-09-17 결정, 데이터 보존과 세션 리셋은 서로 다른 축이다).
+	 * <p>세션은 재발급(refresh)을 시도하는 순간 끝난다 - {@link #refresh}가 게스트의 재발급을
+	 * 전부 거부하므로, Access Token이 만료되거나(나갔다 들어오는 등) 새로고침이 필요해지면 반드시
+	 * 새 게스트 계정으로 다시 시작해야 한다("나갔다 들어오면 초기화"). 계정·데이터(프로젝트·후보
+	 * 등)는 세션 종료와 무관하게 절대 지우지 않는다 - AI 학습·분석용으로 계속 수집한다
+	 * (데이터 보존과 세션 리셋은 서로 다른 축이다).
 	 */
 	@Transactional
 	public TokenResponse guestLogin() {
-		LocalDateTime expiresAt = LocalDateTime.now().plusHours(guestAuthProperties.sessionExpiryHours());
 		Member guest = memberRepository.save(Member.createGuest(
 				"guest+" + UUID.randomUUID() + "@guest.perfumery.local",
-				passwordEncoder.encode(generateRawToken()), expiresAt));
-		return issueTokens(guest.getId(), guest.getEmail(), expiresAt);
+				passwordEncoder.encode(generateRawToken())));
+		return issueTokens(guest.getId(), guest.getEmail());
 	}
 
 	private TokenResponse issueTokens(Long memberId, String email) {
-		return issueTokens(memberId, email, null);
-	}
-
-	private TokenResponse issueTokens(Long memberId, String email, LocalDateTime maxRefreshExpiry) {
 		String accessToken = jwtTokenProvider.createAccessToken(memberId, email);
 		String rawRefreshToken = generateRawToken();
-
-		LocalDateTime refreshExpiry = LocalDateTime.now().plusSeconds(jwtProperties.refreshTokenValiditySeconds());
-		if (maxRefreshExpiry != null && maxRefreshExpiry.isBefore(refreshExpiry)) {
-			refreshExpiry = maxRefreshExpiry;
-		}
 
 		refreshTokenRepository.save(RefreshToken.builder()
 				.memberId(memberId)
 				.tokenHash(tokenHasher.hash(rawRefreshToken))
-				.expiresAt(refreshExpiry)
+				.expiresAt(LocalDateTime.now().plusSeconds(jwtProperties.refreshTokenValiditySeconds()))
 				.build());
 
 		return new TokenResponse(accessToken, rawRefreshToken,

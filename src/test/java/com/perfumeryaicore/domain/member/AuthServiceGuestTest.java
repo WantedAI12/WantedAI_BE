@@ -15,7 +15,6 @@ import com.perfumeryaicore.domain.member.repository.RefreshTokenRepository;
 import com.perfumeryaicore.domain.member.service.AuthService;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
-import com.perfumeryaicore.global.security.GuestAuthProperties;
 import com.perfumeryaicore.global.security.JwtProperties;
 import com.perfumeryaicore.global.security.JwtTokenProvider;
 import com.perfumeryaicore.global.security.LoginLockoutProperties;
@@ -28,13 +27,13 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
- * 게스트 모드: 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만든다. 세션(Refresh Token)은
- * {@code sessionExpiryHours} 뒤에 리셋되지만, 계정·데이터는 세션 만료와 무관하게 절대 지우지
- * 않는다(AI 학습·분석용으로 계속 수집, 2026-09-17/18 결정 - 세션 리셋과 데이터 보존은 별개 축이다).
+ * 게스트 모드: 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만든다. 계정·데이터는 일반 회원과
+ * 같이 영구 보존하지만(삭제 없음, AI 학습·분석용으로 계속 수집), 세션은 재발급(refresh)을
+ * 허용하지 않아 Access Token이 만료되는 순간(나갔다 들어오는 등) 끝난다 - 다시 쓰려면 반드시 새
+ * guestLogin()을 호출해야 한다("나갔다 들어오면 초기화", 2026-09-18 결정).
  */
 class AuthServiceGuestTest {
 
-	private static final GuestAuthProperties GUEST_PROPERTIES = new GuestAuthProperties(24);
 	private static final JwtProperties JWT_PROPERTIES =
 			new JwtProperties("test-secret-value-longer-than-32-bytes-000", 3600, 1209600);
 
@@ -45,7 +44,7 @@ class AuthServiceGuestTest {
 	private final TokenHasher tokenHasher = mock(TokenHasher.class);
 	private final AuthService service = new AuthService(memberRepository, refreshTokenRepository,
 			passwordEncoder, jwtTokenProvider, tokenHasher, JWT_PROPERTIES,
-			new LoginLockoutProperties(5, 900), GUEST_PROPERTIES);
+			new LoginLockoutProperties(5, 900));
 
 	private static void setId(Member member, long id) {
 		try {
@@ -58,8 +57,9 @@ class AuthServiceGuestTest {
 	}
 
 	@Test
-	void guestLogin_creates_a_guest_member_and_caps_the_refresh_token_to_the_session_expiry() {
-		when(memberRepository.save(any(Member.class))).thenAnswer(inv -> {
+	void guestLogin_creates_a_guest_member_and_issues_tokens_like_a_normal_login() {
+		ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
+		when(memberRepository.save(memberCaptor.capture())).thenAnswer(inv -> {
 			Member guest = inv.getArgument(0);
 			setId(guest, 900L);
 			return guest;
@@ -67,63 +67,37 @@ class AuthServiceGuestTest {
 		when(passwordEncoder.encode(anyString())).thenReturn("hash");
 		when(jwtTokenProvider.createAccessToken(anyLong(), anyString())).thenReturn("access-token");
 		when(jwtTokenProvider.getAccessTokenValiditySeconds()).thenReturn(3600L);
-		ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
-		when(refreshTokenRepository.save(tokenCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+		when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
 		var response = service.guestLogin();
 
 		assertThat(response.accessToken()).isEqualTo("access-token");
-		LocalDateTime capped = tokenCaptor.getValue().getExpiresAt();
-		// 일반 회원의 refresh 유효기간(14일)보다 훨씬 짧게, 게스트 세션 만료(24시간)로 캡핑돼야 한다.
-		assertThat(capped).isBefore(LocalDateTime.now().plusDays(1).plusMinutes(1));
+		assertThat(memberCaptor.getValue().isGuest()).isTrue();
 	}
 
 	@Test
 	void createGuest_produces_a_member_with_a_placeholder_email_and_no_real_password() {
 		when(passwordEncoder.encode(anyString())).thenReturn("hash");
 
-		Member guest = Member.createGuest("guest+x@guest.perfumery.local",
-				passwordEncoder.encode("random"), LocalDateTime.now().plusHours(24));
+		Member guest = Member.createGuest("guest+x@guest.perfumery.local", passwordEncoder.encode("random"));
 
 		assertThat(guest.isGuest()).isTrue();
 		assertThat(guest.getEmail()).contains("guest");
 	}
 
 	@Test
-	void refresh_rejects_a_refresh_token_whose_guest_session_already_expired() {
-		Member expiredGuest = Member.createGuest(
-				"guest+x@guest.perfumery.local", "hash", LocalDateTime.now().minusMinutes(1));
-		setId(expiredGuest, 901L);
+	void refresh_always_rejects_a_guest_member_so_the_session_resets_on_the_next_visit() {
+		Member guest = Member.createGuest("guest+y@guest.perfumery.local", "hash");
+		setId(guest, 901L);
 		RefreshToken stored = RefreshToken.builder()
 				.memberId(901L).tokenHash("hash").expiresAt(LocalDateTime.now().plusDays(1)).build();
 		when(tokenHasher.hash(anyString())).thenReturn("hash");
 		when(refreshTokenRepository.findByTokenHashForUpdate("hash")).thenReturn(Optional.of(stored));
-		when(memberRepository.findById(901L)).thenReturn(Optional.of(expiredGuest));
+		when(memberRepository.findById(901L)).thenReturn(Optional.of(guest));
 
 		assertThatThrownBy(() -> service.refresh("raw-token"))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
-	}
-
-	@Test
-	void refresh_recaps_the_reissued_token_to_the_original_guest_expiry() {
-		LocalDateTime guestExpiry = LocalDateTime.now().plusHours(2);
-		Member guest = Member.createGuest("guest+y@guest.perfumery.local", "hash", guestExpiry);
-		setId(guest, 902L);
-		RefreshToken stored = RefreshToken.builder()
-				.memberId(902L).tokenHash("hash").expiresAt(guestExpiry).build();
-		when(tokenHasher.hash(anyString())).thenReturn("hash");
-		when(refreshTokenRepository.findByTokenHashForUpdate("hash")).thenReturn(Optional.of(stored));
-		when(memberRepository.findById(902L)).thenReturn(Optional.of(guest));
-		when(jwtTokenProvider.createAccessToken(anyLong(), anyString())).thenReturn("access-token");
-		when(jwtTokenProvider.getAccessTokenValiditySeconds()).thenReturn(3600L);
-		ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
-		when(refreshTokenRepository.save(tokenCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
-
-		service.refresh("raw-token");
-
-		// 재발급된 토큰도 원래 게스트 만료 시각을 넘지 않아야 한다 - 반복 refresh로 세션을
-		// 무기한 연장할 수 없다.
-		assertThat(tokenCaptor.getValue().getExpiresAt()).isBeforeOrEqualTo(guestExpiry);
+		assertThat(stored.isRevoked()).isTrue();
 	}
 }

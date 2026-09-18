@@ -23,9 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties({
-		JwtProperties.class, LoginLockoutProperties.class, CorsProperties.class, GuestAuthProperties.class
-})
+@EnableConfigurationProperties({JwtProperties.class, LoginLockoutProperties.class, CorsProperties.class})
 public class SecurityConfig {
 
 	// 로드밸런서 등이 인증 없이 호출해야 한다(BE-089). 상세 정보는 노출하지 않는다
