@@ -47,7 +47,7 @@ class CandidateDiagnosticReviseServiceTest {
 		CandidateVersionResponse version = new CandidateVersionResponse(
 				1200L, CANDIDATE_ID, null,
 				List.of(new IngredientLine("linalyl_acetate", "Linalyl Acetate", "top", 100.0, null, null, null)),
-				42.0, null, null, null, MEMBER_ID, LocalDateTime.now(), null);
+				42.0, null, null, null, null, MEMBER_ID, LocalDateTime.now(), null);
 		return new CandidateResponse(CANDIDATE_ID, REQUEST_ID, CandidateStatus.UNDER_REVIEW, version, null, null, null);
 	}
 

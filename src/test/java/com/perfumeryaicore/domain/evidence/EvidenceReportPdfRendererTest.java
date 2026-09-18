@@ -34,7 +34,7 @@ class EvidenceReportPdfRendererTest {
 				List.of(new IngredientLine("dihydromyrcenol", "Dihydromyrcenol", "top", 23.5, 3.5, 18.0, 0.99)),
 				42.0, "안전·가격·의미 조건을 충족한 R&D 후보입니다.",
 				new GenerationMeta("modal", false, "prototype_ready", 1690L),
-				null, 7L, LocalDateTime.now(), null);
+				null, null, 7L, LocalDateTime.now(), null);
 		CandidateResponse candidate = new CandidateResponse(
 				900L, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, version, null, null, null);
 

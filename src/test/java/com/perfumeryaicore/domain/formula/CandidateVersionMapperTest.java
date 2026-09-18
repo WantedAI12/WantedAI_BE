@@ -86,4 +86,32 @@ class CandidateVersionMapperTest {
 		CandidateVersionResponse withGarbage = mapper.toResponse(versionWithRaw("not json"), List.of());
 		assertThat(withGarbage.temporal()).isNull();
 	}
+
+	/**
+	 * AI팀 확인(2026-09-18) - 실제 Modal 라이브 응답으로 확인한 구조. 원료 배합비 목록만 보여주던
+	 * 화면 대신 이 서술형 설명을 쓸 수 있다.
+	 */
+	@Test
+	void perfumer_notes_text_is_reparsed_from_stored_raw_response() {
+		String rawWithNotes = """
+				{
+				  "status": "prototype_ready",
+				  "message": "안전 조건 충족",
+				  "perfumer_notes": {
+				    "schema_version": "perfumer-notes/v1",
+				    "text": "향의 콘셉트\\n요청하신 것을 출발점으로 구성한 배합입니다."
+				  }
+				}""";
+
+		CandidateVersionResponse response = mapper.toResponse(versionWithRaw(rawWithNotes), List.of());
+
+		assertThat(response.perfumerNotes()).contains("향의 콘셉트");
+	}
+
+	@Test
+	void missing_perfumer_notes_yields_null_without_failing() {
+		CandidateVersionResponse response = mapper.toResponse(versionWithRaw(RAW_RESPONSE), List.of());
+
+		assertThat(response.perfumerNotes()).isNull();
+	}
 }

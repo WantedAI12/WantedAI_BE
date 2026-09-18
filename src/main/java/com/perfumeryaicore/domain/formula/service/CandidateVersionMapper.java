@@ -58,6 +58,7 @@ public class CandidateVersionMapper {
 				version.getGenerationRationale(),
 				meta,
 				temporal,
+				parsed == null ? null : parsed.perfumerNotesText(),
 				version.getCreatedBy(),
 				version.getCreatedAt(),
 				version.getRestoredFromVersionId());

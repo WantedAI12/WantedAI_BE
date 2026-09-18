@@ -17,6 +17,14 @@ public record CandidateVersionResponse(
 		String generationRationale,
 		GenerationMeta generationMeta,
 		Temporal temporal,
+
+		/**
+		 * AI팀 확인(2026-09-18): 원료 배합비 목록만 보여주던 화면 대신 쓸 수 있는 조향사용
+		 * 서술형 설명(콘셉트·원료별 배합 의도·향의 전개·검토 의견·다음 시향 확인 사항을 하나로
+		 * 엮은 글, {@code perfumer_notes.text}). 아직 이 필드가 없던 과거 응답이면 {@code null}.
+		 */
+		String perfumerNotes,
+
 		Long createdBy,
 		LocalDateTime createdAt,
 
