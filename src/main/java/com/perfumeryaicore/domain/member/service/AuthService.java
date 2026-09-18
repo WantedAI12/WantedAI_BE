@@ -98,6 +98,13 @@ public class AuthService {
 
 		Member member = memberRepository.findById(stored.getMemberId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+		if (member.isGuest()) {
+			// 게스트는 재발급 자체를 허용하지 않는다 - Access Token이 만료돼 refresh가 필요해지는
+			// 시점(나갔다 들어오는 등)마다 세션이 끝나야 한다(2026-09-18 요구사항). 계정·데이터는
+			// 지우지 않고 그대로 두되(영구 보존), 다음 이용은 반드시 새 guestLogin()으로 시작한다.
+			stored.revoke(now);
+			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+		}
 
 		stored.revoke(now);
 		return issueTokens(member.getId(), member.getEmail());
@@ -111,11 +118,16 @@ public class AuthService {
 	}
 
 	/**
-	 * 게스트 모드(BE, 2026-09-16): 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만들고 바로
-	 * 로그인 상태로 토큰을 발급한다. 일반 회원과 동일하게 무기한 유지되며(로그아웃·만료·데이터
-	 * 삭제 없음 - 게스트 사용 데이터도 계속 수집하기로 결정함), 이 계정이 만드는 프로젝트에
-	 * 자동으로 PERFUMER가 되는 것 외에는 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다
-	 * (권한 체계가 프로젝트 단위라서 그대로 작동한다, {@code ProjectService.initialRoleFor} 참고).
+	 * 게스트 모드(2026-09-18 재조정): 가입 없이 즉시 회원처럼 쓸 수 있는 임시 계정을 만들고 바로
+	 * 로그인 상태로 토큰을 발급한다. 이 계정이 만드는 프로젝트에 자동으로 PERFUMER가 되는 것 외에는
+	 * 다른 도메인 코드가 전혀 게스트 여부를 구분하지 않는다(권한 체계가 프로젝트 단위라서 그대로
+	 * 작동한다, {@code ProjectService.initialRoleFor} 참고).
+	 *
+	 * <p>세션은 재발급(refresh)을 시도하는 순간 끝난다 - {@link #refresh}가 게스트의 재발급을
+	 * 전부 거부하므로, Access Token이 만료되거나(나갔다 들어오는 등) 새로고침이 필요해지면 반드시
+	 * 새 게스트 계정으로 다시 시작해야 한다("나갔다 들어오면 초기화"). 계정·데이터(프로젝트·후보
+	 * 등)는 세션 종료와 무관하게 절대 지우지 않는다 - AI 학습·분석용으로 계속 수집한다
+	 * (데이터 보존과 세션 리셋은 서로 다른 축이다).
 	 */
 	@Transactional
 	public TokenResponse guestLogin() {
