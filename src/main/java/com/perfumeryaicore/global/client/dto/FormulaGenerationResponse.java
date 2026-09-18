@@ -68,7 +68,16 @@ public record FormulaGenerationResponse(
 		String scientificSamplingVersion,
 
 		@JsonProperty("deployment")
-		Deployment deployment
+		Deployment deployment,
+
+		/**
+		 * AI팀 확인(2026-09-18): 원료 배합비 목록만 보여주던 화면 대신 쓸 수 있는 조향사용
+		 * 서술형 설명(콘셉트·원료별 배합 의도·향의 전개·검토 의견·다음 시향 확인 사항을 하나로
+		 * 엮은 글). {@code perfumer_notes.text}만 저장·전달한다 - 하위 구조(ingredients 등)는
+		 * 이미 {@code recipe}로 따로 갖고 있어 중복 보관하지 않는다.
+		 */
+		@JsonProperty("perfumer_notes")
+		PerfumerNotes perfumerNotes
 ) {
 
 	/** Modal이 안전한 해를 찾지 못한 경우의 상태값. 이때 {@code recipe}는 빈 배열이다. */
@@ -80,6 +89,10 @@ public record FormulaGenerationResponse(
 
 	public int recipeSize() {
 		return recipe == null ? 0 : recipe.size();
+	}
+
+	public String perfumerNotesText() {
+		return perfumerNotes == null ? null : perfumerNotes.text();
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
@@ -102,6 +115,12 @@ public record FormulaGenerationResponse(
 			@JsonProperty("wheel_sha256") String wheelSha256,
 			@JsonProperty("registry_sha256") String registrySha256,
 			@JsonProperty("registry_connected_total") Integer registryConnectedTotal
+	) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public record PerfumerNotes(
+			@JsonProperty("text") String text
 	) {
 	}
 }
