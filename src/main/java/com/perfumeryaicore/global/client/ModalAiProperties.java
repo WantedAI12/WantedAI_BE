@@ -34,4 +34,15 @@ public record ModalAiProperties(
 	public boolean hasAuthToken() {
 		return authToken != null && !authToken.isBlank();
 	}
+
+	/**
+	 * 원화(KRW/kg)를 Modal 가격 필드 기준(USD/kg)으로 환산한다. 실제 배합 생성 경로(향수
+	 * {@code /v1/formulas}, 로션 {@code /v1/applications/body-lotion/design})와 리뷰 경로
+	 * (v2 {@code briefs}) 양쪽 모두 이 메서드로만 환산해야 한다 - 한쪽에서만 환산하고 다른
+	 * 경로는 원화 값을 그대로 보내는 실수를 막기 위해 변환 로직을 한 곳에 둔다
+	 * (AI 개발팀 확인, 2026-09-19).
+	 */
+	public Double krwPerKgToUsd(Double krwPerKg) {
+		return krwPerKg == null ? null : krwPerKg / krwPerUsd;
+	}
 }
