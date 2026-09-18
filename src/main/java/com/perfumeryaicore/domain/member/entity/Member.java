@@ -43,12 +43,18 @@ public class Member extends BaseTimeEntity {
 	private LocalDateTime lockedUntil;
 
 	/**
-	 * 게스트 모드(로그인 없이 체험) 계정 표시. 일반 회원과 동일하게 무기한 유지되고 데이터도
-	 * 계속 쌓인다 - 이 플래그는 만료·삭제 판단용이 아니라 게스트 출처 데이터를 구분하기 위한
-	 * 것이다(예: AI 학습·분석용 데이터 수집).
+	 * 게스트 모드(로그인 없이 체험) 계정 표시 - 게스트 출처 데이터를 구분하기 위한 플래그다.
+	 * 이 계정으로 만든 프로젝트·후보 등 모든 데이터는 만료 후에도 지우지 않고 영구 보존한다
+	 * (AI 학습·분석용, 2026-09-17 결정) - {@link #guestExpiresAt}은 데이터 삭제 기준이 아니라
+	 * "세션(로그인 상태)"만 리셋하는 기준이다: 이 시각이 지나면 Refresh Token 재발급이 막혀
+	 * 다시 게스트로 시작해야 하지만, 이전 계정과 데이터는 그대로 남아 있다.
 	 */
 	@Column(name = "is_guest", nullable = false)
 	private boolean guest;
+
+	/** 게스트 세션 만료 시각(로그인 유지 한도) - 일반 회원은 항상 {@code null}. */
+	@Column(name = "guest_expires_at")
+	private LocalDateTime guestExpiresAt;
 
 	@Builder
 	private Member(String email, String passwordHash, String name) {
@@ -57,16 +63,24 @@ public class Member extends BaseTimeEntity {
 		this.name = name;
 	}
 
-	private Member(String email, String passwordHash, String name, boolean guest) {
+	private Member(String email, String passwordHash, String name, boolean guest, LocalDateTime guestExpiresAt) {
 		this.email = email;
 		this.passwordHash = passwordHash;
 		this.name = name;
 		this.guest = guest;
+		this.guestExpiresAt = guestExpiresAt;
 	}
 
-	/** 임의의 무작위 비밀번호 해시로 즉시 사용 가능한 게스트 계정을 만든다 - 실제 로그인 수단은 없다. */
-	public static Member createGuest(String email, String passwordHash) {
-		return new Member(email, passwordHash, "Guest", true);
+	/**
+	 * 임의의 무작위 비밀번호 해시로 즉시 사용 가능한 게스트 계정을 만든다 - 실제 로그인 수단은
+	 * 없다. {@code expiresAt} 이후엔 세션(로그인)만 끊긴다 - 계정과 데이터는 지우지 않는다.
+	 */
+	public static Member createGuest(String email, String passwordHash, LocalDateTime expiresAt) {
+		return new Member(email, passwordHash, "Guest", true, expiresAt);
+	}
+
+	public boolean isGuestExpired(LocalDateTime now) {
+		return guestExpiresAt != null && now.isAfter(guestExpiresAt);
 	}
 
 	public void updateName(String name) {

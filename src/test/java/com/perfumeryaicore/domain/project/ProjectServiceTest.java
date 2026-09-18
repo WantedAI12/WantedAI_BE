@@ -86,7 +86,7 @@ class ProjectServiceTest {
 	void create_registers_a_guest_creator_as_perfumer_instead_of_org_admin() {
 		when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 		when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
-		Member guest = Member.createGuest("guest+z@guest.perfumery.local", "hash");
+		Member guest = Member.createGuest("guest+z@guest.perfumery.local", "hash", java.time.LocalDateTime.now().plusHours(24));
 		when(memberRepository.findById(ACTOR_ID)).thenReturn(Optional.of(guest));
 
 		ProjectResponse res = service.create(ACTOR_ID, new CreateProjectRequest("체험 프로젝트", null, null, null));

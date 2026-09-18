@@ -38,7 +38,8 @@ class AuthServiceLoginLockoutTest {
 	private final TokenHasher tokenHasher = mock(TokenHasher.class);
 	private final JwtProperties jwtProperties = new JwtProperties("test-secret-value-longer-than-32-bytes-000", 3600, 1209600);
 	private final AuthService service = new AuthService(memberRepository, refreshTokenRepository,
-			passwordEncoder, jwtTokenProvider, tokenHasher, jwtProperties, LOCKOUT_PROPERTIES);
+			passwordEncoder, jwtTokenProvider, tokenHasher, jwtProperties, LOCKOUT_PROPERTIES,
+			new com.perfumeryaicore.global.security.GuestAuthProperties(24));
 
 	private static Member member() {
 		Member member = Member.builder().email(EMAIL).passwordHash("hash").name("사용자").build();
