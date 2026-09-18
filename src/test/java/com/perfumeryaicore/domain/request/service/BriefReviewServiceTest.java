@@ -88,6 +88,29 @@ class BriefReviewServiceTest {
 		assertThat(formula.get("max_ingredient_price_per_kg").asDouble()).isEqualTo(180.0 / KRW_PER_USD);
 		assertThat(formula.get("target_region").asString()).isEqualTo("EU");
 		assertThat(formula.get("product_category").asString()).isEqualTo("eau_de_parfum");
+		assertThat(formula.get("accords").isArray()).isTrue();
+		assertThat(formula.get("accords")).isEmpty();
+	}
+
+	/**
+	 * AI팀 확인(2026-09-19): v1 FormulaRequestMapper와 같은 필드 매핑을 유지한다 - 실제 생성과
+	 * 이 리뷰 경로가 같은 향 계열 정보를 봐야 한다.
+	 */
+	@Test
+	void prepare_forwards_the_stored_accords_into_the_formula_schema() {
+		FragranceRequest request = FragranceRequest.create(10L, MEMBER_ID, "피오니와 청사과 향");
+		request.applyUpdate(null, ProductCategory.EAU_DE_PARFUM, TargetRegion.EU, 2,
+				Intensity.MODERATE, Longevity.HIGH, 15.0, 30, 180.0, List.of("시트러스", "우디"));
+		when(requestService.getAccessibleRequest(REQUEST_ID, MEMBER_ID)).thenReturn(request);
+		ArgumentCaptor<PrepareBriefRequest> captor = ArgumentCaptor.forClass(PrepareBriefRequest.class);
+		when(perfumeryAiClient.prepareBrief(captor.capture(), any(), any()))
+				.thenReturn(new PerfumeryAiResult<>("{}", readyResponse("review-1"), 10L));
+
+		service.prepare(REQUEST_ID, MEMBER_ID, BriefReviewRequest.empty());
+
+		JsonNode accords = captor.getValue().request().get("formula").get("accords");
+		assertThat(accords.get(0).asString()).isEqualTo("시트러스");
+		assertThat(accords.get(1).asString()).isEqualTo("우디");
 	}
 
 	/**
