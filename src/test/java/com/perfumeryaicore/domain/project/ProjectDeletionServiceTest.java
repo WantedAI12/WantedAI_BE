@@ -23,6 +23,7 @@ import com.perfumeryaicore.domain.formula.repository.GenerationRejectionReposito
 import com.perfumeryaicore.domain.ingredient.repository.CatalogSyncRunRepository;
 import com.perfumeryaicore.domain.job.repository.JobRepository;
 import com.perfumeryaicore.domain.project.entity.Project;
+import com.perfumeryaicore.domain.project.entity.ProjectMember;
 import com.perfumeryaicore.domain.project.repository.ProjectImageAssetRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectMemberAuditLogRepository;
 import com.perfumeryaicore.domain.project.repository.ProjectMemberRepository;
@@ -109,7 +110,7 @@ class ProjectDeletionServiceTest {
 
 	@Test
 	void delete_is_forbidden_for_a_role_without_management_access() {
-		when(accessGuard.requireRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireManageRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.delete(PROJECT_ID, MEMBER_ID))
@@ -120,7 +121,7 @@ class ProjectDeletionServiceTest {
 
 	@Test
 	void delete_fails_when_the_project_does_not_exist() {
-		when(accessGuard.requireRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireManageRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.ORG_ADMIN);
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.empty());
 
@@ -131,7 +132,7 @@ class ProjectDeletionServiceTest {
 
 	@Test
 	void delete_removes_the_full_candidate_graph_before_the_project_itself() {
-		when(accessGuard.requireRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireManageRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.ORG_ADMIN);
 		Project project = Project.create("삭제될 프로젝트", null, null, null);
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
@@ -165,9 +166,52 @@ class ProjectDeletionServiceTest {
 		verify(projectRepository).delete(project);
 	}
 
+	/** 목 대신 실제 {@link ProjectAccessGuard}로 연결한, 권한 검사까지 포함한 삭제 서비스. */
+	private ProjectDeletionService serviceWithRealGuard() {
+		return new ProjectDeletionService(
+				projectRepository, projectMemberRepository, projectMemberAuditLogRepository,
+				projectImageAssetRepository, new ProjectAccessGuard(projectMemberRepository),
+				requestRepository, checklistItemRepository, generationRejectionRepository,
+				candidateRepository, candidateVersionRepository, candidateVersionIngredientRepository,
+				candidateMemoRepository, evidenceReportRepository, sensoryTestRepository,
+				sensoryTestResultRepository, experimentStatusLogRepository, approvalGateRepository,
+				supplyChangeRepository, supplyChangeAffectedCandidateRepository, supplyReviewDecisionRepository,
+				jobRepository, catalogSyncRunRepository);
+	}
+
+	/**
+	 * 게스트가 만든 1인 프로젝트의 생성자는 ORG_ADMIN이 아니라 PERFUMER로 등록된다. 회원이 삭제를
+	 * 눌렀을 때와 똑같이 지워져야 한다(2026-09-19 결정).
+	 */
+	@Test
+	void a_solo_guest_creator_with_the_perfumer_role_can_delete_their_own_project() {
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID))
+				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, MEMBER_ID, ProjectRole.PERFUMER)));
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(1L);
+		Project project = Project.create("게스트 프로젝트", null, null, null);
+		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
+
+		serviceWithRealGuard().delete(PROJECT_ID, MEMBER_ID);
+
+		verify(projectRepository).delete(project);
+	}
+
+	/** 팀원이 있는 프로젝트에서는 실제 관리 역할이 없는 멤버가 프로젝트를 지울 수 없다. */
+	@Test
+	void a_non_admin_member_of_a_team_project_still_cannot_delete_it() {
+		when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID))
+				.thenReturn(Optional.of(ProjectMember.create(PROJECT_ID, MEMBER_ID, ProjectRole.PERFUMER)));
+		when(projectMemberRepository.countByProjectId(PROJECT_ID)).thenReturn(2L);
+
+		assertThatThrownBy(() -> serviceWithRealGuard().delete(PROJECT_ID, MEMBER_ID))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ErrorCode.PROJECT_ROLE_FORBIDDEN);
+		verify(projectRepository, never()).delete(any());
+	}
+
 	@Test
 	void delete_succeeds_for_a_project_with_no_requests_or_candidates() {
-		when(accessGuard.requireRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
+		when(accessGuard.requireManageRole(PROJECT_ID, MEMBER_ID, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.PROJECT_MANAGER);
 		Project project = Project.create("빈 프로젝트", null, null, null);
 		when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
