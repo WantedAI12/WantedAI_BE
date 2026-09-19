@@ -100,7 +100,7 @@ class CandidateDeletionServiceTest {
 		Candidate candidate = candidate();
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(candidate));
 		when(accessGuard.requireWriteRole(PROJECT_ID, MEMBER_ID,
-				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN))
 				.thenThrow(new BusinessException(ErrorCode.PROJECT_ROLE_FORBIDDEN));
 
 		assertThatThrownBy(() -> service.delete(CANDIDATE_ID, MEMBER_ID))
@@ -117,7 +117,7 @@ class CandidateDeletionServiceTest {
 		candidate.transitionStatus(CandidateStatus.APPROVED);
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(candidate));
 		when(accessGuard.requireWriteRole(PROJECT_ID, MEMBER_ID,
-				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN))
 				.thenReturn(ProjectRole.PERFUMER);
 
 		assertThatThrownBy(() -> service.delete(CANDIDATE_ID, MEMBER_ID))
@@ -131,7 +131,7 @@ class CandidateDeletionServiceTest {
 		Candidate candidate = candidate();
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(candidate));
 		when(accessGuard.requireWriteRole(PROJECT_ID, MEMBER_ID,
-				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN))
 				.thenReturn(ProjectRole.PERFUMER);
 
 		CandidateVersion version = CandidateVersion.builder().candidateId(CANDIDATE_ID).createdBy(MEMBER_ID).build();
@@ -162,7 +162,7 @@ class CandidateDeletionServiceTest {
 		Candidate candidate = candidate();
 		when(candidateRepository.findById(CANDIDATE_ID)).thenReturn(Optional.of(candidate));
 		when(accessGuard.requireWriteRole(PROJECT_ID, MEMBER_ID,
-				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND))
+				ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN))
 				.thenReturn(ProjectRole.FRAGRANCE_RND);
 
 		service.delete(CANDIDATE_ID, MEMBER_ID);

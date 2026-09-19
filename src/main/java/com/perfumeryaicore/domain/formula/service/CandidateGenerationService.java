@@ -34,7 +34,7 @@ public class CandidateGenerationService {
 
 	/** SUPPLIER·AUDITOR는 후보 생성을 트리거할 수 없다(BE-004). */
 	private static final ProjectRole[] TRIGGER_ROLES = {
-			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN
 	};
 
 	private final FragranceRequestService fragranceRequestService;
