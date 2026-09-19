@@ -40,7 +40,7 @@ class EvidenceReportSnapshotServiceTest {
 
 	@Test
 	void snapshot_combines_all_five_sources_into_one_bundle() {
-		CandidateResponse candidate = new CandidateResponse(900L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+		CandidateResponse candidate = new CandidateResponse(900L, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null);
 		SafetyEvaluationResponse safety = mock(SafetyEvaluationResponse.class);
 		PredictionResponse prediction = mock(PredictionResponse.class);
 		when(candidateService.get(900L, 1L)).thenReturn(candidate);

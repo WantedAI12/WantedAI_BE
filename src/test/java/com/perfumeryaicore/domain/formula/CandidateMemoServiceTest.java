@@ -43,7 +43,8 @@ class CandidateMemoServiceTest {
 	private final CandidateVersionMapper versionMapper = mock(CandidateVersionMapper.class);
 	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
 	private final CandidateService candidateService = new CandidateService(
-			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper, accessGuard);
+			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper, accessGuard,
+			mock(com.perfumeryaicore.domain.request.service.FragranceRequestService.class));
 	private final CandidateMemoService service = new CandidateMemoService(memoRepository, candidateService);
 
 	private static Candidate withId(Candidate candidate, long id) {

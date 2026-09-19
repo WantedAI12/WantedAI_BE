@@ -19,6 +19,7 @@ import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
 import com.perfumeryaicore.domain.formula.service.CandidateService;
 import com.perfumeryaicore.domain.formula.service.CandidateVersionMapper;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
+import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
@@ -41,8 +42,10 @@ class CandidateServiceTest {
 			mock(CandidateVersionIngredientRepository.class);
 	private final CandidateVersionMapper versionMapper = mock(CandidateVersionMapper.class);
 	private final ProjectAccessGuard accessGuard = mock(ProjectAccessGuard.class);
+	private final FragranceRequestService fragranceRequestService = mock(FragranceRequestService.class);
 	private final CandidateService service = new CandidateService(
-			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper, accessGuard);
+			candidateRepository, candidateVersionRepository, ingredientRepository, versionMapper, accessGuard,
+			fragranceRequestService);
 
 	private static Candidate withId(Candidate candidate, long id) {
 		try {
@@ -73,6 +76,37 @@ class CandidateServiceTest {
 		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
 
 		assertThat(service.get(100L, 2L).candidateId()).isEqualTo(100L);
+	}
+
+	/**
+	 * 화면에 "향 요청 #N"으로 보여줄 번호는 전체가 공용으로 쓰는 요청 ID가 아니라 프로젝트 안에서
+	 * 1부터 매긴 순번이어야 한다 - 다른 프로젝트·다른 사용자의 요청 개수가 섞이면 안 된다.
+	 */
+	@Test
+	void the_response_carries_the_per_project_request_number_not_the_global_request_id() {
+		Candidate candidate = withId(Candidate.create(13L, PROJECT_ID, 1L, null), 100L);
+		when(candidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+		when(fragranceRequestService.requestNumber(PROJECT_ID, 13L)).thenReturn(1);
+
+		CandidateResponse response = service.get(100L, 2L);
+
+		assertThat(response.requestId()).isEqualTo(13L);
+		assertThat(response.requestNumber()).isEqualTo(1);
+	}
+
+	@Test
+	void listByRequest_computes_the_request_number_once_for_all_candidates_of_the_request() {
+		Candidate a = withId(Candidate.create(13L, PROJECT_ID, 1L, null), 100L);
+		Candidate b = withId(Candidate.create(13L, PROJECT_ID, 1L, null), 101L);
+		when(candidateRepository.findByRequestIdOrderByCreatedAtDesc(13L)).thenReturn(List.of(a, b));
+		when(accessGuard.isMember(PROJECT_ID, 2L)).thenReturn(true);
+		when(fragranceRequestService.requestNumber(PROJECT_ID, 13L)).thenReturn(3);
+
+		List<CandidateResponse> responses = service.listByRequest(13L, 2L);
+
+		assertThat(responses).extracting(CandidateResponse::requestNumber).containsExactly(3, 3);
+		verify(fragranceRequestService).requestNumber(PROJECT_ID, 13L);
 	}
 
 	@Test

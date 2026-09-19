@@ -48,7 +48,7 @@ class CandidateDiagnosticReviseServiceTest {
 				1200L, CANDIDATE_ID, null,
 				List.of(new IngredientLine("linalyl_acetate", "Linalyl Acetate", "top", 100.0, null, null, null)),
 				42.0, null, null, null, null, null, null, MEMBER_ID, LocalDateTime.now(), null);
-		return new CandidateResponse(CANDIDATE_ID, REQUEST_ID, CandidateStatus.UNDER_REVIEW, version, null, null, null);
+		return new CandidateResponse(CANDIDATE_ID, REQUEST_ID, 1, CandidateStatus.UNDER_REVIEW, version, null, null, null);
 	}
 
 	private PrepareBriefResponse readyPrepare(String reviewId) {
@@ -111,7 +111,7 @@ class CandidateDiagnosticReviseServiceTest {
 	@Test
 	void revise_fails_when_the_candidate_has_no_current_version() {
 		CandidateResponse candidate = new CandidateResponse(
-				CANDIDATE_ID, REQUEST_ID, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+				CANDIDATE_ID, REQUEST_ID, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null);
 		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidate);
 
 		assertThatThrownBy(() -> service.revise(CANDIDATE_ID, MEMBER_ID, "지시"))
