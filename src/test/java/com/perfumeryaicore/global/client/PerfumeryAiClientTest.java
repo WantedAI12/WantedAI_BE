@@ -154,6 +154,60 @@ class PerfumeryAiClientTest {
 		assertThat(calls.get()).isEqualTo(1);
 	}
 
+	/**
+	 * 실제 Modal 라이브 응답(2026-09-19): 같은 입력이면 항상 실패하는 언어 해석 오류가 502로 오면서
+	 * 본문에 retryable=false를 명시한다. HTTP 5xx라는 이유로 재시도하면 사용자가 ~85초 대기를 두 번
+	 * 겪으므로, AI가 명시한 신호를 우선하고 AI가 준 사유를 그대로 전달해야 한다.
+	 */
+	@Test
+	void a_5xx_that_declares_retryable_false_is_not_retried_and_carries_the_ai_reason() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.BAD_GATEWAY,
+				"{\"detail\":{\"code\":\"LANGUAGE_DUPLICATE_CONSTRAINT\",\"status\":\"language_service_error\","
+						+ "\"message\":\"모델 수치 조건이 중복되었습니다.\",\"recipe_generated\":false,"
+						+ "\"retryable\":false,\"next_action\":\"retry_later\",\"questions\":[]}}", calls));
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t"))
+				.isInstanceOf(BusinessException.class)
+				.hasMessage("모델 수치 조건이 중복되었습니다. (LANGUAGE_DUPLICATE_CONSTRAINT)")
+				.extracting("errorCode", "retryable")
+				.containsExactly(ErrorCode.AI_SERVICE_ERROR, false);
+		assertThat(calls.get()).isEqualTo(1);
+	}
+
+	/** 언어 서비스가 다른 요청을 처리 중일 때(LANGUAGE_BUSY, 503)는 AI가 retryable=true라고 알려 준다. */
+	@Test
+	void a_5xx_that_declares_retryable_true_is_retried_and_still_carries_the_ai_reason() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.SERVICE_UNAVAILABLE,
+				"{\"detail\":{\"code\":\"LANGUAGE_BUSY\",\"message\":\"현재 다른 요청을 처리하고 있습니다.\","
+						+ "\"retryable\":true,\"next_action\":\"retry_later\"}}", calls));
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t"))
+				.isInstanceOf(BusinessException.class)
+				.hasMessage("현재 다른 요청을 처리하고 있습니다. (LANGUAGE_BUSY)")
+				.extracting("errorCode", "retryable")
+				.containsExactly(ErrorCode.AI_SERVICE_ERROR, true);
+		assertThat(calls.get()).isEqualTo(2);
+	}
+
+	/** 본문에 retryable·사유가 없는 5xx는 기존과 같이 재시도 가능으로 보고 기본 메시지를 쓴다. */
+	@Test
+	void a_5xx_without_a_structured_detail_keeps_the_previous_behavior() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1),
+				respondWith(HttpStatus.BAD_GATEWAY, "upstream connect error", calls));
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t"))
+				.isInstanceOf(BusinessException.class)
+				.hasMessage(ErrorCode.AI_SERVICE_ERROR.getMessage())
+				.extracting("retryable").isEqualTo(true);
+		assertThat(calls.get()).isEqualTo(2);
+	}
+
 	@Test
 	void local_rate_limit_blocks_call_beyond_cap() {
 		AtomicInteger calls = new AtomicInteger();
