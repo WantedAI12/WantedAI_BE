@@ -208,6 +208,41 @@ class PerfumeryAiClientTest {
 		assertThat(calls.get()).isEqualTo(2);
 	}
 
+	/**
+	 * 2026-09-19 운영 실패: 'IllegalArgumentException: argument "content" is null'. 오류 상태가 아닌데 본문이
+	 * 빈 응답은 WebClient가 예외 없이 null을 돌려줘서 파싱 단계에서 정체불명의 예외가 됐다. 분명한 사유의
+	 * 재시도 가능한 오류로 바뀌어야 한다.
+	 */
+	@Test
+	void an_empty_200_response_is_a_clear_retryable_error_not_a_null_parse_crash() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 1), respondWith(HttpStatus.OK, "", calls));
+
+		assertThatThrownBy(() -> client.generateFormula(
+				FormulaGenerationRequest.standard("x", "EU", "eau_de_parfum", null, null, 12), "t"))
+				.isInstanceOf(BusinessException.class)
+				.hasMessageContaining("빈 응답")
+				.extracting("errorCode", "retryable")
+				.containsExactly(ErrorCode.AI_SERVICE_ERROR, true);
+		assertThat(calls.get()).isEqualTo(2); // 원래 시도 + 재시도 1회
+	}
+
+	@Test
+	void a_204_no_content_response_is_treated_the_same_way() {
+		AtomicInteger calls = new AtomicInteger();
+		PerfumeryAiClient client = client(props("wk-a.ws-b", 30, 0), request -> {
+			calls.incrementAndGet();
+			return Mono.just(ClientResponse.create(HttpStatus.NO_CONTENT).build());
+		});
+
+		assertThatThrownBy(() -> client.designLotion(
+				LotionEstimateRequest.of("citrus lotion", 1, 150.0, 2.0, java.util.List.of()), "t", null))
+				.isInstanceOf(BusinessException.class)
+				.hasMessageContaining("빈 응답")
+				.extracting("errorCode").isEqualTo(ErrorCode.AI_SERVICE_ERROR);
+		assertThat(calls.get()).isEqualTo(1);
+	}
+
 	@Test
 	void local_rate_limit_blocks_call_beyond_cap() {
 		AtomicInteger calls = new AtomicInteger();
