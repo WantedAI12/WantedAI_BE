@@ -33,8 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FragranceRequestService {
 
+	/**
+	 * 조직 관리자(ORG_ADMIN)도 실무 쓰기를 할 수 있다(기획 결정 A, 2026-09-19) - 프로젝트를 만든 관리자가 팀원을
+	 * 초대한 뒤에도 자기 프로젝트에서 요청을 만들 수 있어야 한다. 관능시험 결과 등록·안전 승인 같은
+	 * 검증 성격의 권한은 여기에 포함하지 않는다.
+	 */
 	private static final ProjectRole[] WRITE_ROLES = {
-			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN
 	};
 
 	private final FragranceRequestRepository requestRepository;

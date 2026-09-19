@@ -44,7 +44,7 @@ public class ProjectAccessGuard {
 	}
 
 	/**
-	 * 요청·후보 작성 같은 실무 쓰기 작업 전용 검사({@code requireRole}과 같지만 한 가지 예외를
+	 * 실무 쓰기 작업 전용 검사({@code requireRole}과 같지만 한 가지 예외를
 	 * 더 허용한다): 프로젝트에 멤버가 자신 하나뿐이면 {@code ORG_ADMIN}도 통과시킨다.
 	 *
 	 * <p>초대할 팀원이 아직 없는 1인 프로젝트에서는 생성자(자동으로 {@code ORG_ADMIN})가
@@ -52,6 +52,10 @@ public class ProjectAccessGuard {
 	 * 상태가 된다 - 그렇다고 자신을 다른 역할로 바꿀 수도 없다(마지막 관리자는 강등 불가,
 	 * {@link ProjectService#isLastAdminLocked}). 멤버가 둘 이상이 되면 이 예외는 더 이상
 	 * 적용되지 않는다 - 그때는 실제로 쓰기 역할을 가진 팀원에게 맡기라는 뜻이다.
+	 *
+	 * <p>참고(2026-09-19): 요청·후보 작성·복제·삭제는 호출부의 역할 목록에 {@code ORG_ADMIN}을 직접 넣어
+	 * 팀원이 있어도 관리자가 쓸 수 있다(기획 결정 A). 이 메서드의 1인 프로젝트 예외는 관능시험·공급 변경 등
+	 * 그 외 호출부에 그대로 적용되며, 관능시험 결과 등록·안전 승인은 기존 담당 역할만 가능하다.
 	 */
 	public ProjectRole requireWriteRole(Long projectId, Long memberId, ProjectRole... writeRoles) {
 		ProjectRole role = requireMember(projectId, memberId);

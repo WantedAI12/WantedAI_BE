@@ -43,7 +43,7 @@ public class CandidateDeletionService {
 
 	/** 새 후보를 만들 수 있는 역할만 지울 수 있다(BE-004와 같은 원칙 - 후보 생명주기 관리 행위). */
 	private static final ProjectRole[] DELETE_ROLES = {
-			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN
 	};
 
 	private final CandidateRepository candidateRepository;
