@@ -143,7 +143,19 @@ public class FragranceRequest extends BaseTimeEntity {
 		if (accords != null) {
 			this.accordsCsv = accords.isEmpty() ? null : String.join(",", accords);
 		}
+		alignProductCategoryWithConcentration();
 		recomputeStatus();
+	}
+
+	/**
+	 * 향수 3종(오 드 코롱·뚜왈렛·퍼퓸)은 제품 유형을 사용 농도로 정한다 - 사용자가 유형을 따로 고르지 않고,
+	 * 클라이언트가 어떤 값을 보내도 농도가 있으면 농도가 우선한다({@link ProductCategory#forFragranceConcentration}).
+	 * 농도가 없으면 보낸 유형을 그대로 두고, 바디로션 등 향수 3종이 아닌 제품은 건드리지 않는다.
+	 */
+	private void alignProductCategoryWithConcentration() {
+		if (productCategory != null && productCategory.isFragranceGrade() && usageConcentrationPercent != null) {
+			this.productCategory = ProductCategory.forFragranceConcentration(usageConcentrationPercent);
+		}
 	}
 
 	public void recomputeStatus() {
@@ -157,6 +169,8 @@ public class FragranceRequest extends BaseTimeEntity {
 		if (status == RequestStatus.CONFIRMED) {
 			throw new BusinessException(ErrorCode.REQUEST_EDIT_NOT_ALLOWED, "이미 확정된 요청입니다.");
 		}
+		// 규칙 도입 전에 저장돼 농도와 어긋난 임시 요청도 확정 시점(AI가 실제로 받는 값)에는 맞춘다.
+		alignProductCategoryWithConcentration();
 		List<String> missing = missingRequiredFields();
 		if (!missing.isEmpty()) {
 			throw new BusinessException(ErrorCode.REQUEST_NOT_CONFIRMABLE,
