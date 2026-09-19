@@ -462,7 +462,16 @@ public class PerfumeryAiClient {
 	 */
 	private String execute(String op, String traceId, Supplier<String> call) {
 		try {
-			return call.get();
+			String body = call.get();
+			// 오류 상태가 아니면서 본문이 비어 있는 응답(예: 따라가지 못한 3xx, 204)은 WebClient가 예외 없이
+			// null을 돌려준다 - 그대로 파싱하면 'argument "content" is null' 같은 정체불명의 예외가 되어
+			// 실패 사유를 알 수 없다(2026-09-19). 분명한 사유로 바꾸고 일시 오류처럼 한 번 재시도한다.
+			if (body == null || body.isBlank()) {
+				log.error("[AI] op={} trace={} empty response body (no error status, nothing to parse)", op, traceId);
+				throw new AiCallException(ErrorCode.AI_SERVICE_ERROR, true,
+						"조향 AI가 빈 응답을 돌려줬습니다. 잠시 후 다시 시도해 주세요.");
+			}
+			return body;
 		} catch (WebClientResponseException e) {
 			int status = e.getStatusCode().value();
 			if (status == 401 || status == 403) {
