@@ -34,7 +34,7 @@ public class CandidateService {
 
 	/** SUPPLIER·AUDITOR는 후보를 복제할 수 없다(BE-004와 같은 원칙 - 새 후보 생성 행위). */
 	private static final ProjectRole[] DUPLICATE_ROLES = {
-			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND
+			ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PRODUCT_BRAND, ProjectRole.ORG_ADMIN
 	};
 
 	private final CandidateRepository candidateRepository;
