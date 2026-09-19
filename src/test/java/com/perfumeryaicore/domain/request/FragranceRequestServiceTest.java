@@ -204,6 +204,20 @@ class FragranceRequestServiceTest {
 		assertThat(res.requestNumber()).isEqualTo(1);
 	}
 
+	/** 응답(structuredIntent.productCategory)에 농도로 정해진 제품 유형이 담겨야 프론트가 읽기 전용으로 보여줄 수 있다. */
+	@Test
+	void the_response_carries_the_product_grade_decided_by_the_concentration() {
+		stubSaveEcho();
+		CreateFragranceRequestRequest dto = new CreateFragranceRequestRequest(
+				"겨울에 쓸 수 있는 따듯한 향", ProductCategory.EAU_DE_PARFUM, TargetRegion.KR, 1,
+				null, null, 10.0, null, null, List.of());
+
+		FragranceRequestResponse res = service.create(10L, 1L, dto);
+
+		assertThat(res.structuredIntent().productCategory()).isEqualTo(ProductCategory.EAU_DE_TOILETTE);
+		assertThat(res.structuredIntent().usageConcentrationPercent()).isEqualTo(10.0);
+	}
+
 	@Test
 	void create_is_denied_for_a_non_member() {
 		assertThatThrownBy(() -> service.create(10L, 999L, createDto(true)))
