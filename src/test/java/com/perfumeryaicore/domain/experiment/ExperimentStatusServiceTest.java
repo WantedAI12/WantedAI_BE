@@ -40,7 +40,7 @@ class ExperimentStatusServiceTest {
 		when(accessGuard.requireWriteRole(10L, 1L, ProjectRole.PERFUMER, ProjectRole.FRAGRANCE_RND, ProjectRole.PROJECT_MANAGER))
 				.thenReturn(ProjectRole.PERFUMER);
 		when(candidateService.get(500L, 1L))
-				.thenReturn(new CandidateResponse(500L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
+				.thenReturn(new CandidateResponse(500L, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null));
 	}
 
 	private ExperimentStatusLog logEntry(CandidateStatus status) {
@@ -122,7 +122,7 @@ class ExperimentStatusServiceTest {
 	void deselecting_a_confirmed_candidate_back_to_under_review_does_not_consult_the_safety_gate() {
 		when(candidateService.get(500L, 1L))
 				.thenReturn(new CandidateResponse(
-						500L, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null, null, null, null));
+						500L, 5L, 1, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null, null, null, null));
 		when(logRepository.save(any(ExperimentStatusLog.class)))
 				.thenReturn(logEntry(CandidateStatus.UNDER_REVIEW));
 
@@ -139,7 +139,7 @@ class ExperimentStatusServiceTest {
 	void reselecting_after_deselect_requires_the_safety_gate_again() {
 		when(candidateService.get(500L, 1L))
 				.thenReturn(new CandidateResponse(
-						500L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
+						500L, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null));
 		when(candidateService.getCurrentVersionId(500L, 1L)).thenReturn(900L);
 		when(approvalGateService.isApprovedForVersion(500L, 900L)).thenReturn(false);
 

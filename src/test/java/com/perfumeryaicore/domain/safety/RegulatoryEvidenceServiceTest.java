@@ -51,7 +51,7 @@ class RegulatoryEvidenceServiceTest {
 				1200L, CANDIDATE_ID, null,
 				List.of(new IngredientLine("linalyl_acetate", "Linalyl Acetate", "top", 100.0, null, null, null)),
 				42.0, null, null, null, null, null, null, MEMBER_ID, LocalDateTime.now(), null);
-		return new CandidateResponse(CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, version, null, null, null);
+		return new CandidateResponse(CANDIDATE_ID, 5L, 1, CandidateStatus.UNDER_REVIEW, version, null, null, null);
 	}
 
 	@Test
@@ -132,7 +132,7 @@ class RegulatoryEvidenceServiceTest {
 	@Test
 	void assess_rejects_a_candidate_without_a_current_version() {
 		CandidateResponse candidate = new CandidateResponse(
-				CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+				CANDIDATE_ID, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null);
 		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidate);
 		AssessEvidenceApiRequest dto = new AssessEvidenceApiRequest(
 				TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, null, null, null);
@@ -169,7 +169,7 @@ class RegulatoryEvidenceServiceTest {
 	@Test
 	void changeImpact_rejects_a_candidate_without_a_current_version() {
 		CandidateResponse candidate = new CandidateResponse(
-				CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+				CANDIDATE_ID, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null);
 		when(candidateService.get(CANDIDATE_ID, MEMBER_ID)).thenReturn(candidate);
 		ChangeImpactApiRequest dto = new ChangeImpactApiRequest(
 				"evidence-v3", TargetRegion.EU, ProductCategory.EAU_DE_PARFUM, 15.0, 180.0, null, null, null, null);

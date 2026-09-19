@@ -43,7 +43,7 @@ class ProjectOnboardingServiceTest {
 		when(projectService.create(eq(MEMBER_ID), eq(dto().project()))).thenReturn(projectResponse);
 
 		FragranceRequestResponse requestResponse = new FragranceRequestResponse(
-				100L, RequestStatus.MISSING_FIELDS, null, List.of("productCategory"), LocalDateTime.now(), null);
+				100L, 1, RequestStatus.MISSING_FIELDS, null, List.of("productCategory"), LocalDateTime.now(), null);
 		when(requestService.createAsProjectCreator(eq(PROJECT_ID), eq(MEMBER_ID), eq(dto().firstRequest())))
 				.thenReturn(requestResponse);
 
