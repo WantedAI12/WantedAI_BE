@@ -79,7 +79,9 @@ public class ProjectDeletionService {
 
 	@Transactional
 	public void delete(Long projectId, Long memberId) {
-		accessGuard.requireRole(projectId, memberId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
+		// 게스트가 만든 1인 프로젝트의 생성자는 PERFUMER라 requireRole로는 자기 프로젝트를 못 지운다 -
+		// 멤버가 본인뿐이면 역할과 무관하게 허용한다(회원의 삭제와 똑같이 물리 삭제, 2026-09-19 결정).
+		accessGuard.requireManageRole(projectId, memberId, ProjectRole.ORG_ADMIN, ProjectRole.PROJECT_MANAGER);
 		Project project = projectRepository.findById(projectId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_NOT_FOUND));
 
