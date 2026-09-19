@@ -11,7 +11,9 @@ import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
 import com.perfumeryaicore.global.exception.ErrorCode;
 import com.perfumeryaicore.global.response.PageResponse;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -75,7 +77,21 @@ public class FragranceRequestService {
 		FragranceRequest saved = requestRepository.save(request);
 		workChecklistService.initialize(saved.getId());
 		log.info("[REQUEST] id={} project={} status={} by={}", saved.getId(), projectId, saved.getStatus(), memberId);
-		return FragranceRequestResponse.from(saved);
+		return toResponse(saved);
+	}
+
+	/**
+	 * 프로젝트 안에서 이 요청이 몇 번째인지(1부터). 요청 ID는 전체 프로젝트가 공용으로 쓰는 자동 증가
+	 * 값이라 화면 번호로 쓰면 다른 프로젝트·다른 사용자의 요청까지 이어 붙은 누적 번호가 보인다.
+	 * 요청은 프로젝트를 지울 때만 함께 삭제되고 개별 삭제가 없어, 저장 컬럼 없이 "같은 프로젝트에서
+	 * 이 요청까지의 개수"로 계산해도 번호가 바뀌지 않는다.
+	 */
+	public int requestNumber(Long projectId, Long requestId) {
+		return (int) requestRepository.countByProjectIdAndIdLessThanEqual(projectId, requestId);
+	}
+
+	private FragranceRequestResponse toResponse(FragranceRequest request) {
+		return FragranceRequestResponse.from(request, requestNumber(request.getProjectId(), request.getId()));
 	}
 
 	/** 프로젝트에 요청이 계속 쌓이므로 페이지네이션한다(BE-085). */
@@ -87,11 +103,20 @@ public class FragranceRequestService {
 		var page = (status == null)
 				? requestRepository.findByProjectIdOrderByCreatedAtDesc(projectId, pageable)
 				: requestRepository.findByProjectIdAndStatusOrderByCreatedAtDesc(projectId, status, pageable);
-		return PageResponse.of(page.map(FragranceRequestResponse::from));
+		// 항목마다 개수를 세면 N번 조회하게 되므로, 프로젝트의 요청 ID를 한 번에 가져와 순번을 매긴다.
+		Map<Long, Integer> numberById = new HashMap<>();
+		List<Long> orderedIds = requestRepository.findIdsByProjectIdOrderByIdAsc(projectId);
+		for (int i = 0; i < orderedIds.size(); i++) {
+			numberById.put(orderedIds.get(i), i + 1);
+		}
+		return PageResponse.of(page.map(r -> {
+			Integer number = numberById.get(r.getId());
+			return FragranceRequestResponse.from(r, number != null ? number : requestNumber(projectId, r.getId()));
+		}));
 	}
 
 	public FragranceRequestResponse get(Long requestId, Long memberId) {
-		return FragranceRequestResponse.from(getAccessibleRequest(requestId, memberId));
+		return toResponse(getAccessibleRequest(requestId, memberId));
 	}
 
 	@Transactional
@@ -109,7 +134,7 @@ public class FragranceRequestService {
 				dto.maxIngredientCount(),
 				dto.maxIngredientPricePerKg(),
 				dto.accords());
-		return FragranceRequestResponse.from(request);
+		return toResponse(request);
 	}
 
 	@Transactional
@@ -118,7 +143,7 @@ public class FragranceRequestService {
 		accessGuard.requireWriteRole(request.getProjectId(), memberId, WRITE_ROLES);
 		request.confirm();
 		log.info("[REQUEST] id={} CONFIRMED by={}", requestId, memberId);
-		return FragranceRequestResponse.from(request);
+		return toResponse(request);
 	}
 
 	/**

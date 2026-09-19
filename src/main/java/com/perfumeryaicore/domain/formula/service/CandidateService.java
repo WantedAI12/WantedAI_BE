@@ -9,6 +9,7 @@ import com.perfumeryaicore.domain.formula.repository.CandidateRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionIngredientRepository;
 import com.perfumeryaicore.domain.formula.repository.CandidateVersionRepository;
 import com.perfumeryaicore.domain.project.service.ProjectAccessGuard;
+import com.perfumeryaicore.domain.request.service.FragranceRequestService;
 import com.perfumeryaicore.global.common.CandidateStatus;
 import com.perfumeryaicore.global.common.ProjectRole;
 import com.perfumeryaicore.global.exception.BusinessException;
@@ -41,6 +42,7 @@ public class CandidateService {
 	private final CandidateVersionIngredientRepository ingredientRepository;
 	private final CandidateVersionMapper versionMapper;
 	private final ProjectAccessGuard accessGuard;
+	private final FragranceRequestService fragranceRequestService;
 
 	/**
 	 * 요청에 속한 후보 전체를 조회한다. 후보마다 버전·원료를 각각 조회하면(N+1) 후보 수만큼
@@ -64,13 +66,16 @@ public class CandidateService {
 				.findByCandidateVersionIdIn(versionIds).stream()
 				.collect(Collectors.groupingBy(CandidateVersionIngredient::getCandidateVersionId));
 
+		// 목록의 후보는 모두 같은 요청 소속이라 순번은 한 번만 계산한다.
+		int requestNumber = fragranceRequestService.requestNumber(
+				candidates.get(0).getProjectId(), candidates.get(0).getRequestId());
 		return candidates.stream()
-				.map(c -> toResponse(c, versionsById, ingredientsByVersionId))
+				.map(c -> toResponse(c, requestNumber, versionsById, ingredientsByVersionId))
 				.toList();
 	}
 
-	private CandidateResponse toResponse(Candidate candidate, Map<Long, CandidateVersion> versionsById,
-			Map<Long, List<CandidateVersionIngredient>> ingredientsByVersionId) {
+	private CandidateResponse toResponse(Candidate candidate, int requestNumber,
+			Map<Long, CandidateVersion> versionsById, Map<Long, List<CandidateVersionIngredient>> ingredientsByVersionId) {
 		CandidateVersionResponse current = null;
 		if (candidate.getCurrentVersionId() != null) {
 			CandidateVersion version = versionsById.get(candidate.getCurrentVersionId());
@@ -80,7 +85,8 @@ public class CandidateService {
 				current = versionMapper.toResponse(version, ingredients);
 			}
 		}
-		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), candidate.getStatus(), current,
+		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), requestNumber,
+				candidate.getStatus(), current,
 				candidate.getDerivedFromCandidateId(), candidate.getDerivedFromVersionId(),
 				candidate.getDerivationReason());
 	}
@@ -274,7 +280,9 @@ public class CandidateService {
 					.orElse(null);
 			current = version == null ? null : toVersionResponse(version);
 		}
-		return new CandidateResponse(candidate.getId(), candidate.getRequestId(), candidate.getStatus(), current,
+		return new CandidateResponse(candidate.getId(), candidate.getRequestId(),
+				fragranceRequestService.requestNumber(candidate.getProjectId(), candidate.getRequestId()),
+				candidate.getStatus(), current,
 				candidate.getDerivedFromCandidateId(), candidate.getDerivedFromVersionId(),
 				candidate.getDerivationReason());
 	}

@@ -60,7 +60,7 @@ class SensoryTestServiceTest {
 		when(accessGuard.hasRole(PROJECT_ID, 1L, ProjectRole.SENSORY_SCIENTIST)).thenReturn(true);
 		// BE-053: plan()이 실험 확정 상태와 현재 버전을 확인한다.
 		when(candidateService.get(CANDIDATE_ID, 1L)).thenReturn(
-				new CandidateResponse(CANDIDATE_ID, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null, null, null, null));
+				new CandidateResponse(CANDIDATE_ID, 5L, 1, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, null, null, null, null));
 		when(candidateService.getCurrentVersionId(CANDIDATE_ID, 1L)).thenReturn(1200L);
 		when(predictionService.get(CANDIDATE_ID, 1L)).thenReturn(prediction(87.4));
 	}
@@ -103,7 +103,7 @@ class SensoryTestServiceTest {
 	@Test
 	void plan_is_rejected_when_the_candidate_is_not_confirmed_for_experiment() {
 		when(candidateService.get(CANDIDATE_ID, 1L)).thenReturn(
-				new CandidateResponse(CANDIDATE_ID, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null));
+				new CandidateResponse(CANDIDATE_ID, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null));
 
 		assertThatThrownBy(() -> service.plan(CANDIDATE_ID, 1L, new SensoryTestPlanRequest(
 				"계획", null, null, null, null, null)))

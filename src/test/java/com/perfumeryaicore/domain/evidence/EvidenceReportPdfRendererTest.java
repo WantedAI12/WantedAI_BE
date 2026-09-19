@@ -36,7 +36,7 @@ class EvidenceReportPdfRendererTest {
 				new GenerationMeta("modal", false, "prototype_ready", 1690L),
 				null, null, null, null, 7L, LocalDateTime.now(), null);
 		CandidateResponse candidate = new CandidateResponse(
-				900L, 5L, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, version, null, null, null);
+				900L, 5L, 1, CandidateStatus.CONFIRMED_FOR_EXPERIMENT, version, null, null, null);
 
 		SafetyEvaluationResponse safety = new SafetyEvaluationResponse(
 				900L, 1200L, "PASSED", true, false, "internal", 62.5, false, true, false,

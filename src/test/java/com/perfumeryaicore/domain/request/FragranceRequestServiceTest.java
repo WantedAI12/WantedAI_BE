@@ -170,6 +170,40 @@ class FragranceRequestServiceTest {
 		assertThat(result.hasNext()).isTrue();
 	}
 
+	/**
+	 * 화면에 보여줄 번호는 전체가 공용으로 쓰는 요청 ID가 아니라 프로젝트 안에서 1부터 매긴 순번이어야
+	 * 한다 - 목록은 최신순으로 나와도 각 요청은 자기 생성 순서의 번호를 유지한다.
+	 */
+	@Test
+	void list_numbers_each_request_by_its_position_within_the_project_regardless_of_the_global_id() {
+		var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+		FragranceRequest newest = FragranceRequest.create(10L, 1L, "raw-newest");
+		FragranceRequest oldest = FragranceRequest.create(10L, 1L, "raw-oldest");
+		org.springframework.test.util.ReflectionTestUtils.setField(newest, "id", 57L);
+		org.springframework.test.util.ReflectionTestUtils.setField(oldest, "id", 13L);
+		when(repository.findByProjectIdOrderByCreatedAtDesc(10L, pageable))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(newest, oldest)));
+		when(repository.findIdsByProjectIdOrderByIdAsc(10L)).thenReturn(List.of(13L, 40L, 57L));
+
+		var result = service.list(10L, 1L, null, pageable);
+
+		assertThat(result.content()).extracting(FragranceRequestResponse::requestId).containsExactly(57L, 13L);
+		assertThat(result.content()).extracting(FragranceRequestResponse::requestNumber).containsExactly(3, 1);
+	}
+
+	@Test
+	void a_single_request_response_carries_the_per_project_number() {
+		FragranceRequest request = FragranceRequest.create(10L, 1L, "raw");
+		org.springframework.test.util.ReflectionTestUtils.setField(request, "id", 13L);
+		when(repository.findById(13L)).thenReturn(Optional.of(request));
+		when(repository.countByProjectIdAndIdLessThanEqual(10L, 13L)).thenReturn(1L);
+
+		FragranceRequestResponse res = service.get(13L, 1L);
+
+		assertThat(res.requestId()).isEqualTo(13L);
+		assertThat(res.requestNumber()).isEqualTo(1);
+	}
+
 	@Test
 	void create_is_denied_for_a_non_member() {
 		assertThatThrownBy(() -> service.create(10L, 999L, createDto(true)))

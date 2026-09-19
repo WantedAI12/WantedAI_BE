@@ -11,9 +11,13 @@ import java.util.List;
 
 /**
  * 향 요청 상세 응답. {@code missingFields}가 비어 있어야 {@code POST /requests/{id}/confirm}이 가능하다.
+ *
+ * <p>{@code requestId}는 전체 요청이 공용으로 쓰는 자동 증가 ID라 API 식별용이다 - 화면에 번호로
+ * 보여줄 때는 프로젝트 안에서 1부터 매긴 {@code requestNumber}를 쓴다.
  */
 public record FragranceRequestResponse(
 		Long requestId,
+		int requestNumber,
 		RequestStatus status,
 		StructuredIntent structuredIntent,
 		List<String> missingFields,
@@ -35,7 +39,7 @@ public record FragranceRequestResponse(
 	) {
 	}
 
-	public static FragranceRequestResponse from(FragranceRequest r) {
+	public static FragranceRequestResponse from(FragranceRequest r, int requestNumber) {
 		StructuredIntent intent = new StructuredIntent(
 				r.getRawText(),
 				r.accords(),
@@ -49,6 +53,7 @@ public record FragranceRequestResponse(
 				r.getMaxIngredientPricePerKg());
 		return new FragranceRequestResponse(
 				r.getId(),
+				requestNumber,
 				r.getStatus(),
 				intent,
 				r.missingRequiredFields(),

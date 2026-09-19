@@ -33,7 +33,7 @@ class CandidateCompareServiceTest {
 				.toList();
 		CandidateVersionResponse version = new CandidateVersionResponse(
 				900L, candidateId, null, ingredients, cost, "rationale", null, null, null, null, null, 1L, LocalDateTime.now(), null);
-		return new CandidateResponse(candidateId, requestId, CandidateStatus.UNDER_REVIEW, version, null, null, null);
+		return new CandidateResponse(candidateId, requestId, 1, CandidateStatus.UNDER_REVIEW, version, null, null, null);
 	}
 
 	private PredictionResponse prediction(Long candidateId, Double similarity, Double applicability) {
@@ -96,7 +96,7 @@ class CandidateCompareServiceTest {
 
 	@Test
 	void missing_current_version_yields_null_cost_and_stability() {
-		CandidateResponse noVersion = new CandidateResponse(1L, 5L, CandidateStatus.UNDER_REVIEW, null, null, null, null);
+		CandidateResponse noVersion = new CandidateResponse(1L, 5L, 1, CandidateStatus.UNDER_REVIEW, null, null, null, null);
 		when(candidateService.get(1L, 1L)).thenReturn(noVersion);
 		when(predictionService.get(1L, 1L)).thenReturn(prediction(1L, null, null));
 
