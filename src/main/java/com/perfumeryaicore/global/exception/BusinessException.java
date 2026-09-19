@@ -35,4 +35,10 @@ public class BusinessException extends RuntimeException {
 		this.errorCode = errorCode;
 		this.retryable = retryable;
 	}
+
+	public BusinessException(ErrorCode errorCode, String message, boolean retryable) {
+		super(message);
+		this.errorCode = errorCode;
+		this.retryable = retryable;
+	}
 }

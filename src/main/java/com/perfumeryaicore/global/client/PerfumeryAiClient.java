@@ -442,10 +442,14 @@ public class PerfumeryAiClient {
 				}
 				log.error("[AI] op={} trace={} attempt={} error={} durationMs={} retryable={}",
 						op, traceId, attempt, e.errorCode.name(), durationMs, e.retryable);
-				// BE-108: 재시도 여부는 실제 HTTP 상태로 판단한 e.retryable을 그대로 물려준다 -
-				// JobExecutor가 오류 코드만 보고 다시 재시도 가능으로 되돌리면(예: 항상 재시도
-				// 가능하다고 오해하기 쉬운 AI_SERVICE_ERROR), 같은 입력값으로 영원히 실패할
-				// 요청을 계속 재시도하게 된다(AI/프론트 개발팀 확인, 2026-09-17).
+				// BE-108: 재시도 여부는 e.retryable(AI가 본문에 명시했으면 그 값, 아니면 HTTP 상태로
+				// 추정)을 그대로 물려준다 - JobExecutor가 오류 코드만 보고 다시 재시도 가능으로
+				// 되돌리면(예: 항상 재시도 가능하다고 오해하기 쉬운 AI_SERVICE_ERROR), 같은
+				// 입력값으로 영원히 실패할 요청을 계속 재시도하게 된다(AI/프론트 개발팀 확인,
+				// 2026-09-17). AI가 준 사유가 있으면 메시지로 함께 실어, 실패 화면에서 원인을 볼 수 있다.
+				if (e.reason != null) {
+					throw new BusinessException(e.errorCode, e.reason, e.retryable);
+				}
 				throw new BusinessException(e.errorCode, e.retryable);
 			}
 		}
@@ -468,13 +472,19 @@ public class PerfumeryAiClient {
 			if (status == 429) {
 				throw new AiCallException(ErrorCode.AI_RATE_LIMIT_EXCEEDED, true);
 			}
+			AiErrorDetail detail = AiErrorDetail.parse(jsonMapper, e.getResponseBodyAsString());
 			if (e.getStatusCode().is5xxServerError()) {
 				log.error("[AI] op={} trace={} status={} body={}", op, traceId, status, e.getResponseBodyAsString());
-				throw new AiCallException(ErrorCode.AI_SERVICE_ERROR, true);
+				// AI가 본문에 retryable을 명시했으면 HTTP 상태 추정보다 우선한다 - 같은 입력이면 항상
+				// 실패하는 요청(예: LANGUAGE_DUPLICATE_CONSTRAINT, retryable=false)을 한 번 더 보내
+				// 사용자가 같은 대기 시간을 두 번 겪지 않게 한다.
+				throw new AiCallException(ErrorCode.AI_SERVICE_ERROR,
+						detail.retryable() != null ? detail.retryable() : true, detail.reason());
 			}
 			log.error("[AI] op={} trace={} status={} body={} (non-5xx, non-retryable)",
 					op, traceId, status, e.getResponseBodyAsString());
-			throw new AiCallException(ErrorCode.AI_SERVICE_ERROR, false);
+			throw new AiCallException(ErrorCode.AI_SERVICE_ERROR,
+					detail.retryable() != null ? detail.retryable() : false, detail.reason());
 		} catch (WebClientRequestException e) {
 			// 연결 실패·네트워크 오류·응답 타임아웃
 			throw new AiCallException(ErrorCode.AI_SERVICE_TIMEOUT, true);
@@ -556,10 +566,55 @@ public class PerfumeryAiClient {
 
 		private final transient ErrorCode errorCode;
 		private final boolean retryable;
+		/** AI가 응답 본문에 실어 준 사유. 없으면 {@code null}이고 오류 코드의 기본 메시지를 쓴다. */
+		private final String reason;
 
 		private AiCallException(ErrorCode errorCode, boolean retryable) {
+			this(errorCode, retryable, null);
+		}
+
+		private AiCallException(ErrorCode errorCode, boolean retryable, String reason) {
 			this.errorCode = errorCode;
 			this.retryable = retryable;
+			this.reason = reason;
+		}
+	}
+
+	/**
+	 * AI 오류 응답 본문 {@code {"detail": {"code", "message", "retryable", ...}}}에서 재시도 여부와
+	 * 사용자에게 보일 사유를 뽑는다. 이 모양이 아닌 본문(예: 422의 {@code detail}이 문자열·배열)은
+	 * 둘 다 {@code null}이라 기존 판단(HTTP 상태)을 그대로 따른다. 사유는 {@code message (code)}
+	 * 형태이며, 저장·화면 노출을 고려해 길이를 제한한다.
+	 */
+	private record AiErrorDetail(Boolean retryable, String reason) {
+
+		private static final int REASON_MAX_LENGTH = 300;
+		private static final AiErrorDetail NONE = new AiErrorDetail(null, null);
+
+		static AiErrorDetail parse(JsonMapper jsonMapper, String body) {
+			if (body == null || body.isBlank()) {
+				return NONE;
+			}
+			JsonNode detail;
+			try {
+				detail = jsonMapper.readTree(body).get("detail");
+			} catch (JacksonException e) {
+				return NONE;
+			}
+			if (detail == null || !detail.isObject()) {
+				return NONE;
+			}
+			JsonNode retryableNode = detail.get("retryable");
+			Boolean retryable = retryableNode != null && retryableNode.isBoolean() ? retryableNode.asBoolean() : null;
+			String message = textOrNull(detail, "message");
+			String code = textOrNull(detail, "code");
+			String reason = message != null
+					? (code != null ? message + " (" + code + ")" : message)
+					: code;
+			if (reason != null && reason.length() > REASON_MAX_LENGTH) {
+				reason = reason.substring(0, REASON_MAX_LENGTH);
+			}
+			return new AiErrorDetail(retryable, reason);
 		}
 	}
 }
