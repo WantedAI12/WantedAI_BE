@@ -20,6 +20,11 @@ public record UpdateFragranceRequestRequest(
 		@Size(max = 2000)
 		String rawText,
 
+		/**
+		 * 제품 종류. 향수(오 드 코롱·뚜왈렛·퍼퓸)는 {@code usageConcentrationPercent}가 있으면 농도로 자동 결정된다 -
+		 * 5% 미만 코롱, 5% 이상 15% 미만 뚜왈렛, 15% 이상 퍼퓸. 프론트는 "향수"로 보내기만 하면 되고 결정된 값은
+		 * 응답의 {@code structuredIntent.productCategory}로 읽는다. 농도가 없으면 보낸 값을 유지하고, 바디로션 등은 그대로다.
+		 */
 		ProductCategory productCategory,
 
 		TargetRegion targetRegion,
